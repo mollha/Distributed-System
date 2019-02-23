@@ -32,12 +32,13 @@ def read_database():
     return movie_dict
 
 
-@Pyro4.expose
+@Pyro4.behavior(instance_mode="session")        # it is already this by default
 class Server(object):
     def __init__(self):
         self.status = 'active'
         self.movie_dict = read_database()
 
+    @Pyro4.expose
     def average_rating(self, movie_ID):
         ratings = self.movie_dict[movie_ID][3]
         total_rating = 0
@@ -45,6 +46,7 @@ class Server(object):
             total_rating += rating[1]
         return total_rating / len(ratings)
 
+    @Pyro4.oneway
     def update_status(self):
         self.status = choice(['active', 'offline', 'over-loaded'])
 
