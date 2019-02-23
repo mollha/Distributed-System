@@ -30,6 +30,3 @@ def read_database():
                 movie_dict[row[1]][3].append([row[0], row[2], row[3]])
 
     return movie_dict
-
-read_database()
-
