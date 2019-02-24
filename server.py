@@ -77,9 +77,9 @@ class Server(object):
             movie_genres = ",".join(movie_info[2])
 
         except ValueError:
-            return 'ERROR: "' + str(movie_ID) + '"' ' must be a number!'
+            return 'ERROR: Movie ID "' + str(movie_ID) + '"' ' is not a number!'
         except KeyError:
-            return 'ERROR: "' + str(movie_ID) + '"' + ' is not a valid movie_ID'
+            return 'ERROR: "' + str(movie_ID) + '"' + ' is not a valid Movie ID'
 
 
 
