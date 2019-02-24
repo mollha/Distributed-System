@@ -12,7 +12,7 @@ def read_database():
             if skip_row:
                 skip_row = False
             else:
-                movie_ID = row[0]
+                movie_ID = int(row[0])
                 # parse year and name
                 # [[names], year, [genres]]
                 name = row[1][:-7]
@@ -27,16 +27,36 @@ def read_database():
             if skip_row:
                 skip_row = False
             else:
-                movie_dict[row[1]][3].append([row[0], row[2], row[3]])
+                movie_dict[int(row[1])][3].append([row[0], row[2], row[3]])
 
     return movie_dict
 
 
-@Pyro4.behavior(instance_mode="session")        # it is already this by default
+@Pyro4.behavior(instance_mode="single")        # it is already this by default
 class Server(object):
-    def __init__(self):
+    def __init__(self, server_no):
         self.status = 'active'
         self.movie_dict = read_database()
+        # ns = Pyro4.locateNS()
+        # print('hayyy')
+        # daemon = Pyro4.Daemon()
+        # uri = daemon.register(self)
+        # ns.register("replica_manager"+str(server_no), uri, safe=True)
+        # print(ns.list())
+        # daemon.requestLoop()
+
+    @Pyro4.oneway
+    def update_status(self, status=None):
+        status_list = ['active', 'offline', 'over-loaded']
+        if status not in status_list:
+            self.status = choice(status_list)
+        else:
+            self.status = status
+
+
+    @Pyro4.expose
+    def get_status(self):
+        return self.status
 
     @Pyro4.expose
     def average_rating(self, movie_ID):
@@ -46,16 +66,24 @@ class Server(object):
             total_rating += rating[1]
         return total_rating / len(ratings)
 
-    @Pyro4.oneway
-    def update_status(self):
-        self.status = choice(['active', 'offline', 'over-loaded'])
+    @Pyro4.expose
+    def read(self, movie_ID):
+        try:
+            movie_ID = int(movie_ID)
+            movie_info = self.movie_dict[movie_ID]
+            print(movie_info)
+            movie_name = movie_info[0]
+            movie_release = movie_info[1]
+            movie_genres = ",".join(movie_info[2])
+
+        except ValueError:
+            return 'ERROR: "' + str(movie_ID) + '"' ' must be a number!'
+        except KeyError:
+            return 'ERROR: "' + str(movie_ID) + '"' + ' is not a valid movie_ID'
 
 
-daemon = Pyro4.Daemon()         # make a Pyro daemon
-uri = daemon.register(Server)   # reguest the Server as a Pyro object
 
-print("Server ready: object uri = ", uri)
-daemon.requestLoop()                    # start the event loop of the server to wait for calls
-
+server = Server(5)
+server.read('30a7')
 
 # TODO consistency control - if asked to process a request that doesn't make sense then ask for updates first
