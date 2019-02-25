@@ -49,7 +49,7 @@ FrontEndServer()
 
 
 daemon = Pyro4.Daemon()
-uri = daemon.register(MyPyroThing)
+uri = daemon.register(MyPyroThing) # need to reister the front end server here otherwisee this wont come onto the original message??
 print(uri)
 daemon.requestLoop()
 

@@ -7,16 +7,9 @@ import time
 
 @Pyro4.behavior(instance_mode="single")        # it is already this by default
 class Server(object):
-    def __init__(self, server_no):
+    def __init__(self):
         self.status = 'active'
         self.movie_dict = read_database()
-        # ns = Pyro4.locateNS()
-        # print('hayyy')
-        # daemon = Pyro4.Daemon()
-        # uri = daemon.register(self)
-        # ns.register("replica_manager"+str(server_no), uri, safe=True)
-        # print(ns.list())
-        # daemon.requestLoop()
 
     @Pyro4.oneway
     def update_status(self, status=None):
@@ -25,7 +18,6 @@ class Server(object):
             self.status = choice(status_list)
         else:
             self.status = status
-
 
     @Pyro4.expose
     def get_status(self):
@@ -39,59 +31,29 @@ class Server(object):
             total_rating += rating[1]
         return total_rating / len(ratings)
 
-    # def get_movie_from_title(self, title):
-    #     # title must be received in lowercase and stripped etc
-    #     for movie in self.movie_dict:
-    #         if movie[0].lower() == title:
-
-    # def validate(self, movie_identifier, user_ID=None, rating=None):
-    #     # movie identifier could be a string or an ID
-    #     # if it can be transformed to an integer, assume its an ID
-    #     movie_ID = None
-    #     try:
-    #         movie_ID = int(movie_identifier)
-    #     except ValueError:
-    #         # treat it as a string instead
-    #         for ID, title in self.movie_dict.items():
-    #             if movie_identifier.lower() == title.lower():
-    #                 movie_ID = ID
-    #     try:
-    #         movie = self.movie_dict[movie_ID]
-    #     except KeyError:
-    #         return 'ERROR: "' + movie_identifier + '"' + ' is not a valid ID or title'
-    #
-    #     # we can now assume we got the movie
-    #     if rating:
-    #         try:
-    #             rating = float(rating)
-    #             if 0 > rating > 5:
-    #                 return 'ERROR: Rating "' + str(rating) + '" should be between 0 and 5'
-    #         except ValueError:
-    #             return 'ERROR: Rating must be a number between 0 and 5'
-    #
-    #     # we can now assume the rating is fine
-
-
-
-    def get_movie_from_ID(self, movie_ID):
+    def get_movie(self, movie_identifier):
+        movie_ID = None
         try:
-            movie_ID = int(movie_ID)
-            return self.movie_dict[movie_ID]
+            movie_ID = int(movie_identifier)
         except ValueError:
-            return 'ERROR: Movie ID "' + str(movie_ID) + '" is not a number!'
+            # treat it as a string instead
+            for ID, item in self.movie_dict.items():
+                if movie_identifier.lower() == item[0].lower():
+                    movie_ID = ID
+        try:
+            return self.movie_dict[movie_ID]
         except KeyError:
-            return 'ERROR: "' + str(movie_ID) + '"' + ' is not a valid Movie ID'
+            return 'ERROR: "' + movie_identifier + '"' + ' is not a valid ID or title'
 
     @Pyro4.expose
     def get_info(self, movie_ID):
         info = self.get_movie(movie_ID)
         if isinstance(info, list):
-            desc = '--------- Movie Info ---------\n' +\
+            return '--------- Movie Info ---------\n' +\
                    'ID:\t\t' + str(movie_ID) + '\n' +\
                    'Title:\t' + info[0] + '\n' +\
                    'Year:\t' + info[1] + '\n' +\
                    'Genres:\t' + ", ".join(info[2]) + '\n'
-            return desc
         else:
             return info
 
@@ -121,30 +83,6 @@ class Server(object):
         else:
             return info
 
-
-    @Pyro4.expose
-    def create(self, movie_ID, user_ID, rating, update = False):
-        try:
-            rating = float(rating)
-            info = self.get_movie(movie_ID)
-            if isinstance(info, list):
-                if len(info):
-                    desc = 'ERROR: User "' + user_ID + '" has not submitted a review for movie ' + movie_ID
-                    for review in info[3]:
-                        author = review[0]
-                        if user_ID == author:
-                            # TODO Actually update the dictionary
-                            desc = '\nRating: ' + rating + '\n' + \
-                                   'Posted on ' + datetime.utcnow().strftime('%d.%m.%Y') + \
-                                   ' by user "' + author + '"' + '\n'
-                    return desc
-                else:
-                    return 'No ratings to show for movie "' + movie_ID + '"'
-            else:
-                return info
-        except ValueError:
-            return 'ERROR: Rating "' + str(rating) + '" is not a number!'
-
     @Pyro4.expose
     def update(self, movie_ID, rating, user_ID):
         try:
@@ -156,10 +94,8 @@ class Server(object):
                     for review in info[3]:
                         author = review[0]
                         if user_ID == author:
-                            # TODO Actually update the dictionary
-                            desc = '\nRating: ' + rating + '\n' + \
-                                   'Posted on ' + datetime.utcnow().strftime('%d.%m.%Y') + \
-                                   ' by user "' + author + '"' + '\n'
+                            self.movie_dict[movie_ID] = [user_ID, str(rating), str(time.time())]
+                            return 'SUCCESS: Dictionary successfully updated rating'
                     return desc
                 else:
                     return 'No ratings to show for movie "' + movie_ID + '"'
@@ -171,17 +107,16 @@ class Server(object):
     # only one review per film per user
     @Pyro4.expose
     def submit(self, movie_ID, rating, user_ID):
-        # check that user id is a string
         try:
             rating = float(rating)
-            # check that rating is larger than 0 or less than 5
+            if rating < 0 or rating > 5:
+                return 'ERROR: Rating should be a number between 0 and 5!'
             info = self.get_movie(movie_ID)
             if isinstance(info, list):
                 for review in info[3]:
                     author = review[0]
                     if user_ID == author:
                         return 'ERROR: User "' + user_ID + '" has already reviewed movie "' + movie_ID + '"'
-                # TODO Submit a review
                 self.movie_dict[movie_ID] = [user_ID, str(rating), str(time.time())]
             else:
                 return info
@@ -218,7 +153,10 @@ def read_database():
     return movie_dict
 
 
-server = Server(5)
-server.get_info('1')
+ns = Pyro4.locateNS()
+daemon = Pyro4.Daemon()
+uri = daemon.register(Server(1))
+ns.register("replica_manager"+str(1), uri, safe=True)
+daemon.requestLoop()
 
 # TODO consistency control - if asked to process a request that doesn't make sense then ask for updates first

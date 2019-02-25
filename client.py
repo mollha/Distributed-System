@@ -6,6 +6,8 @@ import Pyro4
 # server = Pyro4.Proxy("PYRONAME:front_end_server")    # use name server object lookup uri shortcut
 
 
+# check that input is valid before sending it to front_end_server
+
 # connect to the front end
 # On connection, the front end should introduce itself and ask for the users name (this will be the users ID
 # ask the user which movie to access ratings for
@@ -25,7 +27,20 @@ class Client(object):
             else:
                 print('Name cannot be empty!\n')
         print('Hello ' + self.name + '!')
-        # validate name and check user_ID doesn't already exist
+        # TODO validate name and check user_ID doesn't already exist
+
+    def get_movie(self):
+        valid_movie = False
+        while not valid_movie:
+            movie = self.clean_input(input('Access ratings for which movie? Provide an ID or title: '))
+            if movie:
+                valid_movie = True
+            else:
+                print('Input cannot be empty!\n')
+        print('Hello ' + self.name + '!')
+
+    def get_operation(self, input_string):
+        pass
 
     def clean_input(self, input_string):
         input_string = input_string.strip('"'"'"' ')  # strips leading and trailing whitespace and commas
@@ -34,8 +49,6 @@ class Client(object):
         return input_string
 
 
-
-Client()
 
 # while True:
 #     validInput = False  # initially, valid input is false
@@ -47,4 +60,7 @@ Client()
 #         else:  # otherwise
 #             print('Empty input is not valid - input alphanumeric characters')
 
+
+Client()
+# connect to the front end down here
 
