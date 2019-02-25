@@ -25,7 +25,9 @@ class FrontEndServer(object):
         return "hey"
 
     def interact(self):
-        return "hi"
+        for server in self.server_list:
+            if server.get_status != 'active':
+                continue
 
     @Pyro4.expose
     def add_replica_manager(self):
