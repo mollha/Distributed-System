@@ -20,8 +20,14 @@ class FrontEndServer(object):
         print(ns.list())
         daemon.requestLoop()
 
+    def clean_input(self):
+        # client should do this
+        # check input not empty
+        # m
+        pass
+
     @Pyro4.expose
-    def say_hello(self):
+    def interact_1(self):
         return "hey"
 
     def interact(self):
@@ -33,7 +39,18 @@ class FrontEndServer(object):
     def add_replica_manager(self):
         pass
 
+    @Pyro4.expose
+    def receive_id_or_title(self):
+
+
 FrontEndServer()
 # TODO rather than ask which servers are available - assume they are until they aren't
 # Once they become available they can respond to the front end server
 
+
+daemon = Pyro4.Daemon()
+uri = daemon.register(MyPyroThing)
+print(uri)
+daemon.requestLoop()
+
+# Once a client connects, Pyro will create an instance of the class and use that single object to handle the remote method calls during one client proxy session.

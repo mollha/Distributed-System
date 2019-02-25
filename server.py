@@ -39,7 +39,41 @@ class Server(object):
             total_rating += rating[1]
         return total_rating / len(ratings)
 
-    def get_movie(self, movie_ID):
+    # def get_movie_from_title(self, title):
+    #     # title must be received in lowercase and stripped etc
+    #     for movie in self.movie_dict:
+    #         if movie[0].lower() == title:
+
+    # def validate(self, movie_identifier, user_ID=None, rating=None):
+    #     # movie identifier could be a string or an ID
+    #     # if it can be transformed to an integer, assume its an ID
+    #     movie_ID = None
+    #     try:
+    #         movie_ID = int(movie_identifier)
+    #     except ValueError:
+    #         # treat it as a string instead
+    #         for ID, title in self.movie_dict.items():
+    #             if movie_identifier.lower() == title.lower():
+    #                 movie_ID = ID
+    #     try:
+    #         movie = self.movie_dict[movie_ID]
+    #     except KeyError:
+    #         return 'ERROR: "' + movie_identifier + '"' + ' is not a valid ID or title'
+    #
+    #     # we can now assume we got the movie
+    #     if rating:
+    #         try:
+    #             rating = float(rating)
+    #             if 0 > rating > 5:
+    #                 return 'ERROR: Rating "' + str(rating) + '" should be between 0 and 5'
+    #         except ValueError:
+    #             return 'ERROR: Rating must be a number between 0 and 5'
+    #
+    #     # we can now assume the rating is fine
+
+
+
+    def get_movie_from_ID(self, movie_ID):
         try:
             movie_ID = int(movie_ID)
             return self.movie_dict[movie_ID]
@@ -86,6 +120,30 @@ class Server(object):
                 return 'No ratings to show for movie "' + movie_ID + '"'
         else:
             return info
+
+
+    @Pyro4.expose
+    def create(self, movie_ID, user_ID, rating, update = False):
+        try:
+            rating = float(rating)
+            info = self.get_movie(movie_ID)
+            if isinstance(info, list):
+                if len(info):
+                    desc = 'ERROR: User "' + user_ID + '" has not submitted a review for movie ' + movie_ID
+                    for review in info[3]:
+                        author = review[0]
+                        if user_ID == author:
+                            # TODO Actually update the dictionary
+                            desc = '\nRating: ' + rating + '\n' + \
+                                   'Posted on ' + datetime.utcnow().strftime('%d.%m.%Y') + \
+                                   ' by user "' + author + '"' + '\n'
+                    return desc
+                else:
+                    return 'No ratings to show for movie "' + movie_ID + '"'
+            else:
+                return info
+        except ValueError:
+            return 'ERROR: Rating "' + str(rating) + '" is not a number!'
 
     @Pyro4.expose
     def update(self, movie_ID, rating, user_ID):
