@@ -1,4 +1,5 @@
 import Pyro4
+import uuid
 from csv import reader
 from random import choice
 from datetime import datetime
@@ -6,10 +7,22 @@ import time
 
 
 @Pyro4.behavior(instance_mode="single")        # it is already this by default
-class Server(object):
+class Replica(object):
     def __init__(self):
         self.status = 'active'
         self.movie_dict = read_database()
+        self.name = 'replica_manager_' + str(uuid.uuid4())
+
+    @Pyro4.expose
+    def direct_request(self, request: list):
+        if request[0] == 'FIND':
+            return self.get_info(request[1])
+        elif request[0] == 'READ':
+            return self.read(request[1], request[2])
+        elif request[0] == 'SUBMIT':
+            return self.submit(request[1], request[2], request[3], request[4])
+        elif request[0] == 'UPDATE':
+            return self.update(request[1], request[2], request[3], request[4])
 
     @Pyro4.oneway
     def update_status(self, status=None):
@@ -84,7 +97,7 @@ class Server(object):
             return info
 
     @Pyro4.expose
-    def update(self, movie_ID, rating, user_ID):
+    def update(self, movie_ID, user_ID, rating):
         try:
             rating = float(rating)
             info = self.get_movie(movie_ID)
@@ -106,7 +119,7 @@ class Server(object):
 
     # only one review per film per user
     @Pyro4.expose
-    def submit(self, movie_ID, rating, user_ID):
+    def submit(self, movie_ID, user_ID, rating):
         try:
             rating = float(rating)
             if rating < 0 or rating > 5:
@@ -155,8 +168,14 @@ def read_database():
 
 ns = Pyro4.locateNS()
 daemon = Pyro4.Daemon()
-uri = daemon.register(Server(1))
-ns.register("replica_manager"+str(1), uri, safe=True)
+replica = Replica()
+uri = daemon.register(replica)
+ns.register(replica.name, uri, safe=True)
+print('Starting ' + str(replica.name) + '...')
+
+with Pyro4.Proxy('PYRONAME:front_end_server') as front_end:
+    front_end.register_replica(replica.name)
+
 daemon.requestLoop()
 
 # TODO consistency control - if asked to process a request that doesn't make sense then ask for updates first

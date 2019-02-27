@@ -3,9 +3,7 @@
 import Pyro4
 
 # set up a connection
-# server = Pyro4.Proxy("PYRONAME:front_end_server")    # use name server object lookup uri shortcut
-
-
+front_end = Pyro4.Proxy("PYRONAME:front_end_server")    # use name server object lookup uri shortcut
 # check that input is valid before sending it to front_end_server
 
 # connect to the front end
@@ -16,6 +14,7 @@ import Pyro4
 # On update rating, send user_ID and movie_ID and new rating
 # On submit rating, automatically
 # TODO improve error messages
+
 
 class Client(object):
     def __init__(self):
@@ -36,10 +35,19 @@ class Client(object):
             if movie:
                 valid_movie = True
             else:
-                print('Input cannot be empty!\n')
-        print('Hello ' + self.name + '!')
+                print('ID / Title cannot be empty!\n')
+        print('Excellent choice!')
 
     def get_operation(self, input_string):
+        valid_operation = False
+        operations = ['READ', 'SUBMIT', 'UPDATE']
+        while not valid_operation:
+            movie = self.clean_input(input('Access ratings for which movie? Provide an ID or title: '))
+            if movie:
+                valid_movie = True
+            else:
+                print('ID / Title cannot be empty!\n')
+        print('Excellent choice!')
         pass
 
     def clean_input(self, input_string):
@@ -49,18 +57,60 @@ class Client(object):
         return input_string
 
 
+    def main(self):
+        while True:
+            movie = self.clean_input(input('Access ratings for which movie? Provide an ID or title: '))
+            if movie:
+                break
+            else:
+                print('ID / Title cannot be empty!\n')
+        # contact front end and ask for the movie information
+        response = front_end.direct_request(['FIND', movie])
+        print(response)
+        # print(whatever is returned)
+        # if response.startswith('ERROR')
+        #   break cause error
+        print('Details about operations')
+        operations = ['READ', 'SUBMIT', 'UPDATE']
+        while True:
+            operation = self.clean_input(input('READ, UPDATE or SUBMIT ratings for movie "' + str(movie.capitalize()) + '"? '))
+            if operation.upper() in operations:
+                break
+            else:
+                print('Enter READ, UPDATE or SUBMIT\n')
 
-# while True:
-#     validInput = False  # initially, valid input is false
-#     while not validInput:  # while the input is not valid
-#         inputString = input('Input artist name or "quit" to disconnect: ')  # receive input
-#
-#         if inputString != "":  # if the input is not empty after string is cleaned, this is considered valid
-#             validInput = True  # input is considered valid
-#         else:  # otherwise
-#             print('Empty input is not valid - input alphanumeric characters')
+        if operation == 'READ':
+            # do you want to read all ratings for movie
+            all = self.clean_input(input('Access all ratings or ratings for a particular user? Provide an ID or title: '))
+            # if yes:
+                # organise this here
+        while True:
+            user_ID = self.clean_input(input(operation.capitalize() + ' ratings for which user? Enter User ID: '))
+            if user_ID:
+                break
+            else:
+                print('User ID cannot be empty!')
+        if operation == 'READ':
+            # read all or for a specific client
+            ['READ', ]
+            pass
+        else:
+            while True:
+                rating = self.clean_input(input('Enter a new rating: e.g. 3.0 '))
+                if rating:
+                    break
+                else:
+                    print('Rating cannot be empty!')
+            if operation == 'SUBMIT':
+                pass
+            # do submit
+            else:
+                # assume update
+                pass
+                # do update
 
 
-Client()
+
+Client().main()
 # connect to the front end down here
 
