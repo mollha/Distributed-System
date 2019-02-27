@@ -1,9 +1,8 @@
 # Client.py
 
 import Pyro4
+from Pyro4 import errors
 
-# set up a connection
-front_end = Pyro4.Proxy("PYRONAME:front_end_server")    # use name server object lookup uri shortcut
 # check that input is valid before sending it to front_end_server
 
 # connect to the front end
@@ -27,6 +26,15 @@ class Client(object):
                 print('Name cannot be empty!\n')
         print('Hello ' + self.name + '!')
         # TODO validate name and check user_ID doesn't already exist
+
+
+    def connect(self):
+        # set up a connection
+        try:
+            uri = Pyro4.resolve("PYRONAME:front_end_server")
+            self.front_end = Pyro4.Proxy(uri)  # use name server object lookup uri shortcut
+        except errors.NamingError:
+            print('Make sure that the front end server is running first!')
 
     def get_movie(self):
         valid_movie = False

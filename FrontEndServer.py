@@ -37,7 +37,6 @@ class FrontEndServer(object):
             elif status == 'over-loaded':
                 overloaded = replica
         if overloaded:
-            # use an overloaded server if you have to
             print("Using " + str(overloaded))
             return overloaded
         raise ConnectionRefusedError

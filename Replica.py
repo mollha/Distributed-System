@@ -9,21 +9,13 @@ import time
 @Pyro4.behavior(instance_mode="single")        # it is already this by default
 class Replica(object):
     def __init__(self):
-        self.status = 'active'
         self.movie_dict = read_database()
         self.name = 'replica_manager_' + str(uuid.uuid4())
 
-    @Pyro4.oneway
-    def update_status(self, status=None):
-        status_list = ['active', 'offline', 'over-loaded']
-        if status not in status_list:
-            self.status = choice(status_list)
-        else:
-            self.status = status
-
     @Pyro4.expose
+    @property
     def get_status(self):
-        return self.status
+        return choice(['active', 'offline', 'over-loaded'])
 
     @Pyro4.expose
     def average_rating(self, movie_ID):
