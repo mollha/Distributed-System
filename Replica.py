@@ -13,17 +13,6 @@ class Replica(object):
         self.movie_dict = read_database()
         self.name = 'replica_manager_' + str(uuid.uuid4())
 
-    @Pyro4.expose
-    def direct_request(self, request: list):
-        if request[0] == 'FIND':
-            return self.get_info(request[1])
-        elif request[0] == 'READ':
-            return self.read(request[1], request[2])
-        elif request[0] == 'SUBMIT':
-            return self.submit(request[1], request[2], request[3], request[4])
-        elif request[0] == 'UPDATE':
-            return self.update(request[1], request[2], request[3], request[4])
-
     @Pyro4.oneway
     def update_status(self, status=None):
         status_list = ['active', 'offline', 'over-loaded']
