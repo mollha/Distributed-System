@@ -1,19 +1,5 @@
-#!/usr/bin/env python3
-
 import Pyro4
 from Pyro4 import errors
-
-
-# check that input is valid before sending it to front_end_server
-
-# connect to the front end
-# On connection, the front end should introduce itself and ask for the users name (this will be the users ID
-# ask the user which movie to access ratings for
-# After movie info is returned, ask for READ, UPDATE or SUBMIT
-# If read, reply with user_ID or all ratings
-# On update rating, send user_ID and movie_ID and new rating
-# On submit rating, automatically
-# TODO improve error messages
 
 
 class Client(object):
@@ -24,16 +10,23 @@ class Client(object):
     def get_front_end(self):
         try:
             uri = Pyro4.resolve("PYRONAME:front_end_server")
-            return Pyro4.Proxy(uri)  # use name server object lookup uri shortcut
+            self.front_end = Pyro4.Proxy(uri)  # use name server object lookup uri shortcut
+            return self.front_end
         except errors.NamingError:
             print('ERROR: Make sure that the front end server is running first!')
 
     def send_request(self, request: list):
         # handle possible errors when sending the request - e.g. front end server has gone offline
         try:
-            return self.front_end.direct_request(request)
+            response = self.front_end.direct_request(request)
+            if response == 'ERROR: All replicas offline':
+                print(response)
+                print('Reconnecting...\n')
+                self.send_request(request)
+                return ''
+            return response
         except errors.CommunicationError:
-            self.front_end = self.get_front_end()
+            self.get_front_end
             return 'ERROR: Cannot communicate with server'
 
     def main(self):
