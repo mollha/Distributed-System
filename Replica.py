@@ -1,7 +1,7 @@
 import Pyro4
 import uuid
 from csv import reader
-from random import choice
+from random import choices
 from datetime import datetime
 import time
 
@@ -15,16 +15,9 @@ class Replica(object):
     @Pyro4.expose
     @property
     def get_status(self):
-        return choice(['active', 'offline', 'over-loaded'])
+        return choices(population=['active', 'offline', 'over-loaded'], k=1, weights=[0.6, 0.2, 0.2])[0]
 
     @Pyro4.expose
-    def average_rating(self, movie_ID):
-        ratings = self.movie_dict[movie_ID][3]
-        total_rating = 0
-        for rating in ratings:
-            total_rating += rating[1]
-        return total_rating / len(ratings)
-
     def get_movie(self, movie_identifier):
         movie_ID = None
         try:
@@ -39,19 +32,6 @@ class Replica(object):
         except KeyError:
             return 'ERROR: "' + movie_identifier + '"' + ' is not a valid ID or title'
 
-    @Pyro4.expose
-    def get_info(self, movie_ID):
-        info = self.get_movie(movie_ID)
-        if isinstance(info, list):
-            return '--------- Movie Info ---------\n' +\
-                   'ID:\t\t' + str(movie_ID) + '\n' +\
-                   'Title:\t' + info[0] + '\n' +\
-                   'Year:\t' + info[1] + '\n' +\
-                   'Genres:\t' + ", ".join(info[2]) + '\n'
-        else:
-            return info
-
-    # make sure user_ID comes through as a string
     @Pyro4.expose
     def read(self, movie_ID, user_ID=None):
         info = self.get_movie(movie_ID)
@@ -79,43 +59,33 @@ class Replica(object):
 
     @Pyro4.expose
     def update(self, movie_ID, user_ID, rating):
-        try:
-            rating = float(rating)
-            info = self.get_movie(movie_ID)
-            if isinstance(info, list):
-                if len(info):
-                    desc = 'ERROR: User "' + user_ID + '" has not submitted a review for movie ' + movie_ID
-                    for review in info[3]:
-                        author = review[0]
-                        if user_ID == author:
-                            self.movie_dict[movie_ID] = [user_ID, str(rating), str(time.time())]
-                            return 'SUCCESS: Dictionary successfully updated rating'
-                    return desc
-                else:
-                    return 'No ratings to show for movie "' + movie_ID + '"'
+        info = self.get_movie(movie_ID)
+        if isinstance(info, list):
+            if len(info):
+                desc = 'ERROR: User "' + user_ID + '" has not submitted a review for movie ' + movie_ID
+                for review in info[3]:
+                    author = review[0]
+                    if user_ID == author:
+                        self.movie_dict[movie_ID] = [user_ID, str(rating), str(time.time())]
+                        return 'SUCCESS: Dictionary successfully updated rating'
+                return desc
             else:
-                return info
-        except ValueError:
-            return 'ERROR: Rating "' + str(rating) + '" is not a number!'
+                return 'No ratings to show for movie "' + movie_ID + '"'
+        else:
+            return info
 
     # only one review per film per user
     @Pyro4.expose
     def submit(self, movie_ID, user_ID, rating):
-        try:
-            rating = float(rating)
-            if rating < 0 or rating > 5:
-                return 'ERROR: Rating should be a number between 0 and 5!'
-            info = self.get_movie(movie_ID)
-            if isinstance(info, list):
-                for review in info[3]:
-                    author = review[0]
-                    if user_ID == author:
-                        return 'ERROR: User "' + user_ID + '" has already reviewed movie "' + movie_ID + '"'
-                self.movie_dict[movie_ID] = [user_ID, str(rating), str(time.time())]
-            else:
-                return info
-        except ValueError:
-            return 'ERROR: Rating "' + str(rating) + '" is not a number!'
+        info = self.get_movie(movie_ID)
+        if isinstance(info, list):
+            for review in info[3]:
+                author = review[0]
+                if user_ID == author:
+                    return 'ERROR: User "' + user_ID + '" has already reviewed movie "' + movie_ID + '"'
+            self.movie_dict[movie_ID] = [user_ID, str(rating), str(time.time())]
+        else:
+            return info
 
 
 def read_database():

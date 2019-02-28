@@ -11,13 +11,13 @@ class FrontEndServer(object):
         self.replicas.append(ID)
 
     @Pyro4.expose
-    def request(self, request: list):
+    def direct_request(self, request):
         print("Received request saying ...")
         try:
             replica_name = self.get_replica_name()
-            with Pyro4.Proxy('PYRONAME:'+str(replica_name)) as replica:
+            with Pyro4.Proxy('PYRONAME:' + replica_name) as replica:
                 if request[0] == 'FIND':
-                    return replica.get_info(request[1])
+                    return replica.get_movie(request[1])
                 elif request[0] == 'READ':
                     return replica.read(request[1], request[2])
                 elif request[0] == 'SUBMIT':
@@ -29,17 +29,18 @@ class FrontEndServer(object):
 
     def get_replica_name(self):
         overloaded = None
-        for replica in self.replicas:
-            status = replica.get_status()
+        for replica_name in self.replicas:
+            replica = Pyro4.Proxy('PYRONAME:' + replica_name)
+            status = replica.get_status
             if status == 'active':
-                print("Using " + str(replica))
-                return replica
+                print("Using " + replica_name)
+                return replica_name
             elif status == 'over-loaded':
-                overloaded = replica
-        if overloaded:
-            print("Using " + str(overloaded))
-            return overloaded
-        raise ConnectionRefusedError
+                overloaded = replica_name
+            if overloaded:
+                print("Using " + str(overloaded))
+                return overloaded
+            raise ConnectionRefusedError
 
 
 front_end_server = FrontEndServer()
