@@ -19,7 +19,7 @@ class FrontEndServer(object):
     def direct_request(self, request):
         try:
             operation = request[0]
-            print("Received request to %s" % operation)
+            print("Received request to %s" % operation.lower(), " ")
             s1 = time.time()
             replica = self.get_replica()
             print(time.time() - s1)

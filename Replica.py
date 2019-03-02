@@ -6,113 +6,122 @@ from datetime import datetime
 import time
 
 
+
 @Pyro4.behavior(instance_mode="single")        # it is already this by default
 class Replica(object):
     def __init__(self):
         self.movie_dict = read_database()
         self.name = 'replica_manager_' + str(uuid.uuid4())
 
-    @Pyro4.expose
-    @property
-    def get_status(self):
-        return choices(population=['active', 'offline', 'over-loaded'], k=1, weights=[0.75, 0.2, 0.05])[0]
-
-    @Pyro4.expose
-    def get_movie(self, movie_identifier):
-        movie_ID = None
+    def get_id(self, movie_identifier):
+        movie_id = None
         try:
-            movie_ID = int(movie_identifier)
+            movie_id = int(movie_identifier)
         except ValueError:
             # treat it as a string instead
             for ID, item in self.movie_dict.items():
                 if movie_identifier.lower() == item[0].lower():
-                    movie_ID = ID
+                    movie_id = ID
+        return movie_id
+
+    def get_movie(self, movie_identifier):
+        movie_id = self.get_id(movie_identifier)
         try:
-            return [movie_ID] + self.movie_dict[movie_ID]
+            return [movie_id] + self.movie_dict[movie_id]
         except KeyError:
-            return 'ERROR: "' + movie_identifier + '"' + ' is not a valid ID or title'
+            return 'ERROR: "' + movie_identifier + '"' + ' is not a valid movie ID or title'
 
     @Pyro4.expose
-    def read(self, movie_ID, user_ID=None):
-        movie = self.get_movie(movie_ID)
+    @property
+    def get_status(self):
+        return choices(population=['active', 'offline', 'over-loaded'], k=1, weights=[0.75, 0.05, 0.2])[0]
+
+    @Pyro4.expose
+    def read(self, movie_identifier, user_ID=None):
+        movie = self.get_movie(movie_identifier)
         if isinstance(movie, list):
             if len(movie):
+                title = movie[1]
                 ratings = movie[4]
                 total_rating = 0
                 for rating in ratings:
                     total_rating += float(rating[1])
                 average_rating = round(total_rating / len(ratings), 1)
                 info = '\n--------- Movie Info ---------\n' +\
-                       'ID\t\t' + str(movie[0]) +\
-                       'Title:\t' + movie[1] + '\n' +\
+                       'ID:\t' + str(movie[0]) + '\n' +\
+                       'Title:\t' + title + '\n' +\
                        'Year:\t' + movie[2] + '\n' +\
                        'Genres:\t' + ", ".join(movie[3]) + '\n' +\
-                       'Average Rating: ' + str(average_rating) + '\n'
+                       'Average Rating: ' + str(average_rating) + '\n' +\
+                       '\n---------- Ratings ----------\n'
 
                 if user_ID:
-                    desc = 'ERROR: User "' + user_ID + '" has not submitted a review for movie ' + movie_ID
+                    desc = 'ERROR: User "' + user_ID + '" has not submitted a review for movie "' + title + '"'
                     for review in ratings:
                         author = review[0]
                         if user_ID == author:
                             desc = info + '\nRating: ' + review[1] + '\n' + \
-                                   'Posted on ' + datetime.utcfromtimestamp(int(review[2])).strftime('%d.%m.%Y') + \
+                                   'Posted on ' + datetime.utcfromtimestamp(int(float(review[2]))).strftime('%d.%m.%Y') + \
                                    ' by user "' + author + '"' + '\n'
                 else:
                     desc = info
                     for review in ratings:
                         desc += '\nRating: ' + review[1] + '\n' + \
-                                'Posted on ' + datetime.utcfromtimestamp(int(review[2])).strftime('%d.%m.%Y') + \
+                                'Posted on ' + datetime.utcfromtimestamp(int(float(review[2]))).strftime('%d.%m.%Y') + \
                                 ' by user "' + review[0] + '"' + '\n'
                 return desc
             else:
-                return 'No ratings to show for movie "' + movie_ID + '"'
+                return 'No ratings to show for movie "' + movie[1] + '"'
         else:
             return movie
 
     @Pyro4.expose
-    def update(self, movie_ID, user_ID, rating):
-        movie = self.get_movie(movie_ID)
+    def update(self, movie_identifier, user_ID, rating):
+        movie = self.get_movie(movie_identifier)
         if isinstance(movie, list):
             if len(movie):
-                desc = 'ERROR: User "' + user_ID + '" has not submitted a review for movie ' + movie_ID
-                for review in movie[4]:
+                desc = 'ERROR: User "' + user_ID + '" has not submitted a review for movie "' + movie[1] + '"'
+
+                for review_no, review in enumerate(movie[4]):
                     author = review[0]
                     if user_ID == author:
-                        self.movie_dict[movie_ID] = [user_ID, str(rating), str(time.time())]
+                        self.movie_dict[movie[0]][3][review_no] = [user_ID, str(rating), str(time.time())]
                         return 'SUCCESS: Dictionary successfully updated rating'
+                    # TODO ideally don't want to be returning anything here
                 return desc
             else:
-                return 'No ratings to show for movie "' + movie_ID + '"'
+                return 'No ratings to show for movie "' + movie[1] + '"'
         else:
             return movie
 
     # only one review per film per user
     @Pyro4.expose
-    def submit(self, movie_ID, user_ID, rating):
-        movie = self.get_movie(movie_ID)
+    def submit(self, movie_identifier, user_ID, rating):
+        movie = self.get_movie(movie_identifier)
         if isinstance(movie, list):
             for review in movie[4]:
                 author = review[0]
                 if user_ID == author:
-                    return 'ERROR: User "' + user_ID + '" has already reviewed movie "' + movie_ID + '"'
-            self.movie_dict[movie_ID][3].append([user_ID, str(rating), str(time.time())])
+                    return 'ERROR: User "' + user_ID + '" has already reviewed movie "' + movie[1] + '"'
+            self.movie_dict[movie[0]][3].append([user_ID, str(rating), str(time.time())])
             return 'SUCCESS: Dictionary successfully submitted rating'
         else:
             return movie
 
     @Pyro4.expose
-    def delete(self, movie_ID, user_ID=None):
-        movie = self.get_movie(movie_ID)
+    def delete(self, movie_identifier, user_ID=None):
+        movie = self.get_movie(movie_identifier)
         if isinstance(movie, list):
             if len(movie):
-                desc = 'ERROR: User "' + user_ID + '" has not submitted a review for movie ' + movie_ID
+                desc = 'ERROR: User "' + user_ID + '" has not submitted a review for movie "' + movie[1] + '"'
                 for review in movie[4]:
                     author = review[0]
                     if user_ID == author:
                         desc = 'SUCCESS: Rating removed successfully'
+                # dont want to return anything here
                 return desc
             else:
-                return 'No ratings to show for movie "' + movie_ID + '"'
+                return 'No ratings to show for movie "' + movie[0] + '"'
         else:
             return movie
 
@@ -142,6 +151,11 @@ def read_database():
                 # [[names], year, [genres]]
                 name = row[1][:-7]
                 year = row[1][-5:-1]
+                try:
+                    year = str(int(year))
+                except ValueError:
+                    name = row[1]
+                    year = '-'
                 genres = row[2].split('|')
                 movie_dict[movie_ID] = [name, year, genres, []]
 

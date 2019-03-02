@@ -1,5 +1,5 @@
 start "Name Server" cmd /k python -m Pyro4.naming
-timeout 2
+timeout 1
 start "Front End Server" cmd /k python -m FrontEndServer
 timeout 10
 FOR /L %%i IN (1,1,3) DO (

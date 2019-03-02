@@ -94,8 +94,9 @@ class Client(object):
                             break
                     else:
                         print('ERROR: User ID cannot be empty! Submit an ID such as "1"')
+
             while True:
-                repeat = input('\nWould you like to continue - Y / N ? ').strip().upper()
+                repeat = input('\nWould you like to submit a new request?  Y / N  ').strip().upper()
                 options = ['Y', 'N']
                 if repeat in options:
                     break
