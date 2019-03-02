@@ -5,6 +5,7 @@ from Pyro4 import errors
 class Client(object):
     def __init__(self):
         print('\nWelcome to the movie rating database!')
+        print('\nFollow the on-screen instructions and enter "quit" at any time to disconnect!')
         self.front_end = self.get_front_end()
         self.main()
 
@@ -35,45 +36,60 @@ class Client(object):
             self.get_front_end()
             return 'ERROR: Cannot communicate with server'
 
-    def main(self):
+    def get_movie(self, operation):
         while True:
-            while True:
+            movie = input('\n' + operation.capitalize() +
+                          ' ratings for which movie? Provide an ID or title: ').strip()
+            if movie:
+                break
+            else:
+                print('ID / title cannot be empty! Provide an ID such'
+                      'as "1" or a title such as "Toy Story"\n')
+            return movie
+        return movie
+
+    def get_user(self, operation, movie):
+        while True:
+            user_ID = input('\n' + operation.capitalize() + ' "' + str(movie) +
+                            '" rating for which user? Enter user ID: ').strip()
+            if user_ID:
+                break
+            else:
+                print('User ID cannot be empty! Submit an ID such as "1"')
+        return user_ID
+
+
+    def main(self):
+        repeat = True
+        while repeat:
+
+            # -------------------------------------------------------------------------
+            operation = None
+            options = ['READ', 'SUBMIT', 'UPDATE', 'DELETE', 'QUIT']
+            while operation not in options:
                 operation = input('\nSelect an operation - READ / SUBMIT / UPDATE / DELETE : ').strip().upper()
-                options = ['READ', 'SUBMIT', 'UPDATE', 'DELETE']
-                if operation in options:
-                    break
-                elif not operation:
-                    print('ERROR: Operation cannot be empty! Enter READ, SUBMIT, UPDATE or DELETE\n')
+                if not operation:
+                    print('Operation cannot be empty! Enter READ, SUBMIT, UPDATE or DELETE\n')
                 else:
-                    print('ERROR: Invalid input! Enter READ, SUBMIT, UPDATE or DELETE\n')
+                    print('Invalid input! Enter READ, SUBMIT, UPDATE or DELETE\n')
 
-            while True:
-                movie = input('\n' + operation.capitalize() +
-                              ' ratings for which movie? Provide an ID or title: ').strip()
-                if movie:
-                    break
-                else:
-                    print('ERROR: ID / title cannot be empty! Provide an ID such'
-                          'as "1" or a title such as "Toy Story"\n')
-                return movie
+            if operation == 'QUIT':
+                break
+            # -----------------------------------------------------------
 
-            search = None
+            movie = self.get_movie(operation)
+
+            if movie.upper() == 'QUIT':
+                break
+
+            user_ID = self.get_user(operation, movie)
+
+
+
+
             rating = None
-            if operation == 'READ':
-                while True:
-                    search = input('\nShow all ratings for "' + str(movie) +
-                                   '" or search by user ID?  ALL / SEARCH : ').strip().upper()
-                    if search in ['ALL', 'SEARCH']:
-                        response = self.send_request(['READ', movie, None])
-                        if not response.startswith('ERROR', 0, 5):
-                            if search == 'ALL':
-                                print(response)
-                            break
-                        else:
-                            print(response)
-                    else:
-                        print('ERROR: Invalid input! Enter ALL or SEARCH\n')
-            elif operation in ['SUBMIT', 'UPDATE']:
+
+            if operation in ['SUBMIT', 'UPDATE']:
                 while True:
                     rating = input('\nEnter a rating for "' + str(movie) + '": ').strip()
                     if rating:
@@ -82,24 +98,18 @@ class Client(object):
                             if 0 <= rating <= 5:
                                 break
                             else:
-                                print('ERROR: Rating should be a number between 0 and 5!')
+                                print('Rating should be a number between 0 and 5!')
                         except ValueError:
-                            print('ERROR: Rating "' + str(rating) + '" is not a number!')
+                            print('Rating "' + str(rating) + '" is not a number!')
                     else:
-                        print('ERROR: Rating cannot be empty! Submit a number between 0 and 5')
-            if operation != 'READ' or search == 'SEARCH':
-                while True:
-                    user_ID = input('\n' + operation.capitalize() + ' "' + str(movie) +
-                                    '" rating for which user? Enter user ID: ').strip()
-                    if user_ID:
-                        response = self.send_request(
-                            [operation, movie, user_ID, rating])  # it will soon return something
-                        # if not a movie, will return an error - need to check here that a connection error didnt occur
-                        print(response)
-                        if not response.startswith('ERROR', 0, 5):
-                            break
-                    else:
-                        print('ERROR: User ID cannot be empty! Submit an ID such as "1"')
+                        print('Rating cannot be empty! Submit a number between 0 and 5')
+
+            try:
+                response = self.send_request([operation, movie, user_ID, rating])  # it will soon return something
+            # if not a movie, will return an error - need to check here that a connection error didnt occur
+            except IOError as error:
+                print(error)
+
 
             while True:
                 repeat = input('\nWould you like to submit a new request?  Y / N  ').strip().upper()
