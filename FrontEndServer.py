@@ -1,5 +1,6 @@
 import Pyro4
 import time
+from Exceptions import InvalidInputError
 
 
 class FrontEndServer(object):
@@ -23,9 +24,7 @@ class FrontEndServer(object):
             s1 = time.time()
             replica = self.get_replica()
             print(time.time() - s1)
-            if operation == 'FIND':
-                return replica.get_movie(request[1])
-            elif operation == 'READ':
+            if operation == 'READ':
                 return replica.read(request[1], request[2])
             elif operation == 'DELETE':
                 return replica.delete(request[1], request[2])
@@ -35,6 +34,8 @@ class FrontEndServer(object):
                 return replica.update(request[1], request[2], request[3])
         except ConnectionRefusedError:
             return "ERROR: All replicas offline"
+        # except InvalidInputError as e:
+        #     print(e)
 
     def get_replica(self):
         replica = self.replicas[self.current_replica]

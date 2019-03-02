@@ -28,7 +28,10 @@ class Client(object):
                 else:
                     break
             return response
-        except errors.CommunicationError:
+        except IOError as e:
+            print(e)
+        except errors.CommunicationError as e:
+            print(e)
             self.get_front_end()
             return 'ERROR: Cannot communicate with server'
 
@@ -45,12 +48,14 @@ class Client(object):
                     print('ERROR: Invalid input! Enter READ, SUBMIT, UPDATE or DELETE\n')
 
             while True:
-                movie = input('\n' + operation.capitalize() + ' ratings for which movie? Provide an ID or title: ').strip()
+                movie = input('\n' + operation.capitalize() +
+                              ' ratings for which movie? Provide an ID or title: ').strip()
                 if movie:
                     break
                 else:
                     print('ERROR: ID / title cannot be empty! Provide an ID such'
                           'as "1" or a title such as "Toy Story"\n')
+                return movie
 
             search = None
             rating = None
@@ -87,7 +92,8 @@ class Client(object):
                     user_ID = input('\n' + operation.capitalize() + ' "' + str(movie) +
                                     '" rating for which user? Enter user ID: ').strip()
                     if user_ID:
-                        response = self.send_request([operation, movie, user_ID, rating])  # it will soon return something
+                        response = self.send_request(
+                            [operation, movie, user_ID, rating])  # it will soon return something
                         # if not a movie, will return an error - need to check here that a connection error didnt occur
                         print(response)
                         if not response.startswith('ERROR', 0, 5):

@@ -4,8 +4,7 @@ from csv import reader
 from random import choices
 from datetime import datetime
 import time
-
-
+from Exceptions import InvalidInputError
 
 @Pyro4.behavior(instance_mode="single")        # it is already this by default
 class Replica(object):
@@ -73,57 +72,58 @@ class Replica(object):
             else:
                 return 'No ratings to show for movie "' + movie[1] + '"'
         else:
-            return movie
+            raise IOError(movie)
 
     @Pyro4.expose
+    @Pyro4.oneway
     def update(self, movie_identifier, user_ID, rating):
         movie = self.get_movie(movie_identifier)
         if isinstance(movie, list):
             if len(movie):
-                desc = 'ERROR: User "' + user_ID + '" has not submitted a review for movie "' + movie[1] + '"'
-
+                rating_exists = False
                 for review_no, review in enumerate(movie[4]):
                     author = review[0]
                     if user_ID == author:
                         self.movie_dict[movie[0]][3][review_no] = [user_ID, str(rating), str(time.time())]
-                        return 'SUCCESS: Dictionary successfully updated rating'
-                    # TODO ideally don't want to be returning anything here
-                return desc
+                        rating_exists = True
+                    if not rating_exists:
+                        raise IOError('User "' + user_ID + '" has not submitted a review for movie "' + movie[1] + '"')
             else:
-                return 'No ratings to show for movie "' + movie[1] + '"'
+                raise IOError('No ratings to show for movie "' + movie[1] + '"')
         else:
-            return movie
+            raise IOError(movie)
 
     # only one review per film per user
     @Pyro4.expose
+    @Pyro4.oneway
     def submit(self, movie_identifier, user_ID, rating):
         movie = self.get_movie(movie_identifier)
         if isinstance(movie, list):
             for review in movie[4]:
                 author = review[0]
                 if user_ID == author:
-                    return 'ERROR: User "' + user_ID + '" has already reviewed movie "' + movie[1] + '"'
+                    raise IOError('ERROR: User "' + user_ID + '" has already reviewed movie "' + movie[1] + '"')
             self.movie_dict[movie[0]][3].append([user_ID, str(rating), str(time.time())])
-            return 'SUCCESS: Dictionary successfully submitted rating'
         else:
-            return movie
+            raise IOError(movie)
 
     @Pyro4.expose
+    @Pyro4.oneway
     def delete(self, movie_identifier, user_ID=None):
         movie = self.get_movie(movie_identifier)
         if isinstance(movie, list):
             if len(movie):
-                desc = 'ERROR: User "' + user_ID + '" has not submitted a review for movie "' + movie[1] + '"'
+                rating_exists = False
                 for review in movie[4]:
                     author = review[0]
                     if user_ID == author:
-                        desc = 'SUCCESS: Rating removed successfully'
-                # dont want to return anything here
-                return desc
+                        rating_exists = True
+                if not rating_exists:
+                    raise IOError('ERROR: User "' + user_ID + '" has not submitted a review for movie "' + movie[1] + '"')
             else:
-                return 'No ratings to show for movie "' + movie[0] + '"'
+                raise IOError('No ratings to show for movie "' + movie[0] + '"')
         else:
-            return movie
+            raise IOError(movie)
 
 # piece of gossip - you can share it
 # if you dont have it you cant request for it
