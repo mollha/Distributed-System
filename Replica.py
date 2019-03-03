@@ -7,11 +7,19 @@ import time
 from Exceptions import *
 
 
-@Pyro4.behavior(instance_mode="single")        # it is already this by default
 class Replica(object):
     def __init__(self):
         self.movie_dict = read_database()
         self.name = 'replica_manager_' + str(uuid.uuid4())
+
+    @Pyro4.expose
+    def direct_request(self, request):
+        operation = request[0]
+        if operation in ['read', 'delete']:
+            params = request[1:3]
+        else:
+            params = request[1:]
+        return getattr(self, operation)(*params)
 
     def get_id(self, movie_identifier):
         movie_id = None
@@ -29,7 +37,7 @@ class Replica(object):
         try:
             return [movie_id] + self.movie_dict[movie_id]
         except KeyError:
-            raise InvalidMovieError('ERROR: "' + movie_identifier + '"' + ' is not a valid movie ID or title')
+            raise InvalidMovieError('"' + movie_identifier + '"' + ' is not a valid movie ID or title')
 
     @Pyro4.expose
     @property
@@ -57,16 +65,15 @@ class Replica(object):
                         'Genres:\t' + ", ".join(movie[3]) + '\n' + \
                         'Average Rating: ' + str(average_rating) + '\n' + \
                         '\n----------- Rating -----------\n' + \
-                        '\nRating: ' + review[1] + '\n' + \
+                        'Rating: ' + review[1] + '\n' + \
                         'Posted on ' + datetime.utcfromtimestamp(int(float(review[2]))).strftime('%d.%m.%Y') + \
                         ' by user "' + author + '"' + '\n'
 
-            raise InvalidUserError('ERROR: User "' + user_ID + '" has not submitted a review for movie "' + movie[1] + '"')
+            raise InvalidUserError('User "' + user_ID + '" has not submitted a review for movie "' + movie[1] + '"')
         else:
             raise InvalidMovieError('No ratings to show for movie "' + movie[1] + '"')
 
     @Pyro4.expose
-    @Pyro4.oneway
     def update(self, movie_identifier, user_ID, rating):
         movie = self.get_movie(movie_identifier)
         ratings = movie[4]
@@ -80,22 +87,20 @@ class Replica(object):
                     rating_exists = True
 
             if not rating_exists:
-                raise InvalidUserError('ERROR: User "' + user_ID + '" has not submitted a review for movie "' + movie[1] + '"')
+                raise InvalidUserError('User "' + user_ID + '" has not submitted a review for movie "' + movie[1] + '"')
         else:
             raise InvalidMovieError('No ratings to show for movie "' + movie[1] + '"')
 
     @Pyro4.expose
-    @Pyro4.oneway
     def submit(self, movie_identifier, user_ID, rating):
         movie = self.get_movie(movie_identifier)
         for review in movie[4]:
             author = review[0]
             if user_ID == author:
-                raise InvalidUserError('ERROR: User "' + user_ID + '" has already reviewed movie "' + movie[1] + '"')
+                raise InvalidUserError('User "' + user_ID + '" has already reviewed movie "' + movie[1] + '"')
         self.movie_dict[movie[0]][3].append([user_ID, str(rating), str(time.time())])
 
     @Pyro4.expose
-    @Pyro4.oneway
     def delete(self, movie_identifier, user_ID):
         movie = self.get_movie(movie_identifier)
         ratings = movie[4]
@@ -109,7 +114,7 @@ class Replica(object):
                     rating_exists = True
 
             if not rating_exists:
-                raise InvalidUserError('ERROR: User "' + user_ID + '" has not submitted a review for movie "' + movie[1] + '"')
+                raise InvalidUserError('User "' + user_ID + '" has not submitted a review for movie "' + movie[1] + '"')
         else:
             raise InvalidMovieError('No ratings to show for movie "' + movie[1] + '"')
 
@@ -159,17 +164,16 @@ def read_database():
     return movie_dict
 
 
-ns = Pyro4.locateNS()
-daemon = Pyro4.Daemon()
-replica = Replica()
-uri = daemon.register(replica)
-ns.register(replica.name, uri, safe=True)
-print('Starting ' + str(replica.name) + '...')
+if __name__ == '__main__':
+    ns = Pyro4.locateNS()
+    daemon = Pyro4.Daemon()
+    replica = Replica()
+    uri = daemon.register(replica)
+    ns.register(replica.name, uri, safe=True)
+    print('Starting ' + str(replica.name) + '...')
 
-# check if front end actually on
-with Pyro4.Proxy('PYRONAME:front_end_server') as front_end:
-    front_end.register_replica(replica.name)
+    # check if front end actually on
+    with Pyro4.Proxy('PYRONAME:front_end_server') as front_end:
+        front_end.register_replica(replica.name)
 
-daemon.requestLoop()
-
-# TODO consistency control - if asked to process a request that doesn't make sense then ask for updates first
+    daemon.requestLoop()

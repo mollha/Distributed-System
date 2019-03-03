@@ -1,13 +1,14 @@
 import Pyro4
 from Pyro4 import errors
+from Exceptions import *
 
 
 class Client(object):
     def __init__(self):
         print('\nWelcome to the movie rating database!')
-        print('\nFollow the on-screen instructions and enter "quit" at any time to disconnect!')
+        print('\nFollow the on-screen instructions or enter "quit" at any time to disconnect!')
         self.front_end = self.get_front_end()
-        self.main()
+        self.get_request()
 
     def get_front_end(self):
         try:
@@ -15,115 +16,105 @@ class Client(object):
             self.front_end = Pyro4.Proxy(uri)  # use name server object lookup uri shortcut
             return self.front_end
         except errors.NamingError:
-            print('ERROR: Make sure that the front end server is running first!')
+            print('Make sure that the front end server is running first!')
 
     def send_request(self, request: list):
         # handle possible errors when sending the request - e.g. front end server has gone offline
         try:
             # TODO change to a counter
             while True:
-                response = self.front_end.direct_request(request)
+                response = self.front_end.forward_request(request)
                 if response == 'ERROR: All replicas offline':
                     print(response)
                     print('Reconnecting...\n')
                 else:
                     break
             return response
-        except IOError as e:
-            print(e)
         except errors.CommunicationError as e:
             print(e)
             self.get_front_end()
-            return 'ERROR: Cannot communicate with server'
+            return 'Cannot communicate with server'
 
-    def get_movie(self, operation):
-        while True:
-            movie = input('\n' + operation.capitalize() +
-                          ' ratings for which movie? Provide an ID or title: ').strip()
-            if movie:
-                break
-            else:
-                print('ID / title cannot be empty! Provide an ID such'
-                      'as "1" or a title such as "Toy Story"\n')
-            return movie
-        return movie
-
-    def get_user(self, operation, movie):
-        while True:
-            user_ID = input('\n' + operation.capitalize() + ' "' + str(movie) +
-                            '" rating for which user? Enter user ID: ').strip()
-            if user_ID:
-                break
-            else:
-                print('User ID cannot be empty! Submit an ID such as "1"')
-        return user_ID
-
-
-    def main(self):
-        repeat = True
-        while repeat:
-
-            # -------------------------------------------------------------------------
-            operation = None
+    def get_request(self, operation=None, movie=None, user_id=None, rating=None):
             options = ['READ', 'SUBMIT', 'UPDATE', 'DELETE', 'QUIT']
             while operation not in options:
                 operation = input('\nSelect an operation - READ / SUBMIT / UPDATE / DELETE : ').strip().upper()
                 if not operation:
                     print('Operation cannot be empty! Enter READ, SUBMIT, UPDATE or DELETE\n')
-                else:
+                elif operation not in options:
                     print('Invalid input! Enter READ, SUBMIT, UPDATE or DELETE\n')
 
             if operation == 'QUIT':
-                break
+                return
             # -----------------------------------------------------------
-
-            movie = self.get_movie(operation)
+            while not movie:
+                movie = input('\n' + operation.capitalize() +
+                              ' ratings for which movie? Provide an ID or title: ').strip()
+                if not movie:
+                    print('ID / title cannot be empty! Provide an ID such'
+                          'as "1" or a title such as "Toy Story"\n')
 
             if movie.upper() == 'QUIT':
-                break
+                return
+            # -----------------------------------------------------------
+            while not user_id:
+                user_id = input('\n' + operation.capitalize() + ' "' + str(movie) +
+                                '" rating for which user? Enter user ID: ').strip()
+                if not user_id:
+                    print('User ID cannot be empty! Submit an ID such as "1"')
 
-            user_ID = self.get_user(operation, movie)
-
-
-
-
-            rating = None
-
+            if user_id.lower() == 'QUIT':
+                return
+            # -----------------------------------------------------------
             if operation in ['SUBMIT', 'UPDATE']:
-                while True:
+                while not rating:
                     rating = input('\nEnter a rating for "' + str(movie) + '": ').strip()
                     if rating:
                         try:
                             rating = float(rating)
-                            if 0 <= rating <= 5:
-                                break
-                            else:
+                            if 5 < rating < 0:
                                 print('Rating should be a number between 0 and 5!')
                         except ValueError:
+                            if rating.upper() == 'QUIT':
+                                break
                             print('Rating "' + str(rating) + '" is not a number!')
                     else:
                         print('Rating cannot be empty! Submit a number between 0 and 5')
 
+            if str(rating).upper() == 'QUIT':
+                return
+            # -----------------------------------------------------------
             try:
-                response = self.send_request([operation, movie, user_ID, rating])  # it will soon return something
-            # if not a movie, will return an error - need to check here that a connection error didnt occur
-            except IOError as error:
-                print(error)
+                response = self.send_request([operation.lower(), movie, user_id, rating])
+                if operation == 'READ':
+                    print(response)
+                # if not a movie, will return an error - need to check here that a connection error didnt occur
+                options = ['Y', 'N', 'QUIT']
+                repeat = None
+                while repeat not in options:
+                    repeat = input('\nWould you like to submit a new request?  Y / N :  ').strip().upper()
+                    if not repeat:
+                        print('Input cannot be empty! Enter Y to continue or N to quit\n')
+                    elif repeat not in options:
+                        print('Invalid input! Enter Y to continue or N to quit\n')
+                if repeat == 'Y':
+                    self.get_request()
+                if repeat == 'N' or repeat == 'QUIT':
+                    print('Goodbye!')
+                    return
+            except InvalidMovieError as error:
+                print('ERROR: %s' % error.message)
+                self.get_request(operation=operation)
+                return
+            except InvalidUserError as error:
+                print(error.message)
+                print('got here')
+                self.get_request(operation=operation, movie=movie)
+                return
 
-
-            while True:
-                repeat = input('\nWould you like to submit a new request?  Y / N  ').strip().upper()
-                options = ['Y', 'N']
-                if repeat in options:
-                    break
-                elif not repeat:
-                    print('ERROR: Input cannot be empty! Enter Y to continue or N to quit\n')
-                else:
-                    print('ERROR: Invalid input! Enter Y to continue or N to quit\n')
-            if repeat == 'N':
-                print('Goodbye!')
-                break
 
 
 Client()
 # connect to the front end down here
+
+# TODO invalid user error being excepted as invalid user error

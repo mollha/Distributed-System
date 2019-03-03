@@ -1,6 +1,6 @@
 import Pyro4
 import time
-from Exceptions import InvalidInputError
+from Exceptions import *
 
 
 class FrontEndServer(object):
@@ -10,32 +10,20 @@ class FrontEndServer(object):
 
     @Pyro4.expose
     def register_replica(self, replica_name):
-        s1 = time.time()
         replica = Pyro4.Proxy('PYRONAME:' + replica_name)
         self.replicas.append(replica)
         print("Registered %s" % str(replica_name))
-        print('time', str(time.time() - s1))
 
     @Pyro4.expose
-    def direct_request(self, request):
+    def forward_request(self, request):
         try:
-            operation = request[0]
-            print("Received request to %s" % operation.lower(), " ")
+            print('Received request to %s' % request[0].lower(), '"%s" rating' % request[1], 'for user %s' % request[2])
             s1 = time.time()
             replica = self.get_replica()
             print(time.time() - s1)
-            if operation == 'READ':
-                return replica.read(request[1], request[2])
-            elif operation == 'DELETE':
-                return replica.delete(request[1], request[2])
-            elif operation == 'SUBMIT':
-                return replica.submit(request[1], request[2], request[3])
-            elif operation == 'UPDATE':
-                return replica.update(request[1], request[2], request[3])
+            return replica.direct_request(request)
         except ConnectionRefusedError:
             return "ERROR: All replicas offline"
-        # except InvalidInputError as e:
-        #     print(e)
 
     def get_replica(self):
         replica = self.replicas[self.current_replica]
