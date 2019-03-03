@@ -1,10 +1,10 @@
-import Pyro4
 import uuid
 from csv import reader
 from random import choices
 from datetime import datetime
 import time
 from Exceptions import *
+import Pyro4
 
 
 class Replica(object):
