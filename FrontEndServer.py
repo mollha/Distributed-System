@@ -10,8 +10,6 @@ class FrontEndServer(object):
         self.current_replica = 0
         # self.timestamp = [0, 0, 0]
 
-    # TODO need to remove this initial 4.56 second overhead
-
     @Pyro4.expose
     def forward_request(self, request):
         # need to send prev too with updates only
