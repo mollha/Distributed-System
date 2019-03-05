@@ -9,17 +9,10 @@ import Pyro4
 
 class Replica(object):
     def __init__(self):
+        # The value of the application state as maintained by the RM. Each RM is a state machine, which begins with a
+        # specified initial value and is thereafter solely the result of applying update operations to that state.
         self.movie_dict = read_database()
         self.name = 'replica_manager_' + str(uuid.uuid4())
-
-    @Pyro4.expose
-    def direct_request(self, request):
-        operation = request[0]
-        if operation in ['read', 'delete']:
-            params = request[1:3]
-        else:
-            params = request[1:]
-        return getattr(self, operation)(*params)
 
     def get_id(self, movie_identifier):
         movie_id = None
@@ -43,6 +36,29 @@ class Replica(object):
     @property
     def get_status(self):
         return choices(population=['active', 'offline', 'over-loaded'], k=1, weights=[0.75, 0.05, 0.2])[0]
+
+    @Pyro4.expose
+    @property
+    def get_replica_timestamp(self):
+        return self.replica_timestamp
+
+    @Pyro4.expose
+    @property
+    def get_timestamp(self):
+        return self.timestamp
+
+    @Pyro4.expose
+    def direct_request(self, request):
+        operation = request[0]
+        if operation in ['read', 'delete']:
+            params = request[1:3]
+        else:
+            params = request[1:]
+        return getattr(self, operation)(*params)
+
+    @Pyro4.expose
+    def gossip(self):
+        replica_manager.get_timestamp()
 
     @Pyro4.expose
     def read(self, movie_identifier, user_ID):
@@ -85,6 +101,7 @@ class Replica(object):
                 if user_ID == author:
                     self.movie_dict[movie[0]][3][review_no] = [user_ID, str(rating), str(time.time())]
                     rating_exists = True
+                    self.timestamp += 1
 
             if not rating_exists:
                 raise InvalidUserError('User "' + user_ID + '" has not submitted a review for movie "' + movie[1] + '"')
@@ -99,6 +116,7 @@ class Replica(object):
             if user_ID == author:
                 raise InvalidUserError('User "' + user_ID + '" has already reviewed movie "' + movie[1] + '"')
         self.movie_dict[movie[0]][3].append([user_ID, str(rating), str(time.time())])
+        self.timestamp += 1
 
     @Pyro4.expose
     def delete(self, movie_identifier, user_ID):

@@ -1,6 +1,6 @@
-import Pyro4
 from Pyro4 import errors
 from Exceptions import *
+import Pyro4
 
 
 class Client(object):
@@ -111,8 +111,6 @@ class Client(object):
                 print('got here')
                 self.get_request(operation=operation, movie=movie)
                 return
-
-
 
 Client()
 # connect to the front end down here

@@ -2,9 +2,11 @@ import Pyro4
 import time
 from Exceptions import *
 
-
+# fault_tolerance = 2 (f-1)
 class FrontEndServer(object):
     def __init__(self):
+        # name server registered here
+        self.prev = [0, 0, 0]# empty timestamp
         self.replicas = []
         self.current_replica = 0
 
@@ -16,6 +18,7 @@ class FrontEndServer(object):
 
     @Pyro4.expose
     def forward_request(self, request):
+        # need to send prev too with updates only
         try:
             print('Received request to %s' % request[0].lower(), '"%s" rating' % request[1], 'for user %s' % request[2])
             s1 = time.time()
