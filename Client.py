@@ -85,6 +85,7 @@ class Client(object):
                 return
             # -----------------------------------------------------------
             try:
+                print(operation.lower(), movie, user_id, rating)
                 response = self.send_request([operation.lower(), movie, user_id, rating])
                 if operation == 'READ':
                     print(response)

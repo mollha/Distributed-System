@@ -13,6 +13,11 @@ class Replica(object):
         # specified initial value and is thereafter solely the result of applying update operations to that state.
         self.movie_dict = read_database()
         self.name = 'replica_manager_' + str(uuid.uuid4())
+        self.update_log = {}
+        self.value_timestamp = [0, 0, 0]
+        self.timestamp_table = {}
+
+
 
     def get_id(self, movie_identifier):
         movie_id = None
@@ -40,12 +45,7 @@ class Replica(object):
     @Pyro4.expose
     @property
     def get_replica_timestamp(self):
-        return self.replica_timestamp
-
-    @Pyro4.expose
-    @property
-    def get_timestamp(self):
-        return self.timestamp
+        return
 
     @Pyro4.expose
     def direct_request(self, request):
@@ -58,7 +58,8 @@ class Replica(object):
 
     @Pyro4.expose
     def gossip(self):
-        replica_manager.get_timestamp()
+        # replica_manager.get_timestamp()
+        return
 
     @Pyro4.expose
     def read(self, movie_identifier, user_ID):
@@ -189,9 +190,5 @@ if __name__ == '__main__':
     uri = daemon.register(replica)
     ns.register(replica.name, uri, safe=True)
     print('Starting ' + str(replica.name) + '...')
-
-    # check if front end actually on
-    with Pyro4.Proxy('PYRONAME:front_end_server') as front_end:
-        front_end.register_replica(replica.name)
 
     daemon.requestLoop()
