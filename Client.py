@@ -7,7 +7,7 @@ class Client(object):
     def __init__(self):
         print('\nWelcome to the movie rating database!')
         print('\nFollow the on-screen instructions or enter "quit" at any time to disconnect!')
-        self.front_end = self.get_front_end()
+        client.front_end = client.get_front_end()
         self.get_request()
 
     def get_front_end(self):
@@ -16,12 +16,11 @@ class Client(object):
             self.front_end = Pyro4.Proxy(uri)  # use name server object lookup uri shortcut
             return self.front_end
         except errors.NamingError:
-            print('Make sure that the front end server is running first!')
+            print('Make sure that service is running first!')
 
     def send_request(self, request: list):
         # handle possible errors when sending the request - e.g. front end server has gone offline
         try:
-            # TODO change to a counter
             while True:
                 response = self.front_end.forward_request(request)
                 if response == 'ERROR: All replicas offline':
@@ -113,7 +112,9 @@ class Client(object):
                 self.get_request(operation=operation, movie=movie)
                 return
 
-Client()
+
+if __name__ == '__main__':
+    client = Client()
 # connect to the front end down here
 
-# TODO invalid user error being excepted as invalid user error
+# TODO invalid user error being excepted as invalid movie error

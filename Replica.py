@@ -12,14 +12,24 @@ class Replica(object):
         # The value of the application state as maintained by the RM. Each RM is a state machine, which begins with a
         # specified initial value and is thereafter solely the result of applying update operations to that state.
         self.movie_dict = read_database()
+        self.other_replicas = {}
         self.name = 'replica_manager_' + str(uuid.uuid4())
         self.update_log = {}
+        # The Pyro name server. Storing it locally removes the overhead of re-locating it every time this RM gets
+        # replicas_with_updates.
+        self.ns = Pyro4.locateNS()
         self.value_timestamp = [0, 0, 0]
         self.timestamp_table = {}
+        self.replica_id = None
 
+    # TODO - need to create a way to list the other proxies
 
+    @Pyro4.expose
+    @Pyro4.oneway
+    def set_id(self, new_id):
+        self.replica_id = new_id
 
-    def get_id(self, movie_identifier):
+    def get_movie_id(self, movie_identifier):
         movie_id = None
         try:
             movie_id = int(movie_identifier)
@@ -31,7 +41,7 @@ class Replica(object):
         return movie_id
 
     def get_movie(self, movie_identifier: str) -> list:
-        movie_id = self.get_id(movie_identifier)
+        movie_id = self.get_movie_id(movie_identifier)
         try:
             return [movie_id] + self.movie_dict[movie_id]
         except KeyError:
@@ -43,23 +53,72 @@ class Replica(object):
         return choices(population=['active', 'offline', 'over-loaded'], k=1, weights=[0.75, 0.05, 0.2])[0]
 
     @Pyro4.expose
-    @property
-    def get_replica_timestamp(self):
-        return
+    def direct_request(self, fe_prev, request, update_id=None):
+        self.gossip(fe_prev)
+        # applies updates - applies no updates if the timestamps are the same
+        # assume that replica is up to date
+        # this is why we only need update log and not executed too - theyre the same
+        # first check if the update has been seen before
+        if not self.already_processed(update_id):
+            operation = request[0]
+            if operation in ['read', 'delete']:
+                params = request[1:3]
+            else:
+                params = request[1:]
+            response = getattr(self, operation)(*params)
+
+            # if we got that the update went through as expected
+            if type(response) != Exception and id:
+                # update value timestamp
+                self.value_timestamp[self.replica_id] += 1
+                self.update_log[update_id] = (self.value_timestamp, request)
+
+            return self.value_timestamp, response
+
+        #return timestamp then response only for non errors
+        # [self.prev, client_request, self.update_id]
+
+        # not using a hold-back queue, gossiping instead
+        # fault tolerance stuff requires sending to multiple managers
+
+    def already_processed(self, update_id):
+        try:
+            self.update_log[update_id]
+            return False
+        except KeyError:
+            return True
 
     @Pyro4.expose
-    def direct_request(self, request):
-        operation = request[0]
-        if operation in ['read', 'delete']:
-            params = request[1:3]
-        else:
-            params = request[1:]
-        return getattr(self, operation)(*params)
+    def gossip(self, fe_prev):
+        # other replicas MAY have failed at this point - we don't know
+        # i'm not even gonna check the others are online tbh just use them to gossip with yknow
+        # compare timestamps here
+        # see which replicas have more advanced information
+        replica_list = self.ns.list('replica_manager_')
+        # not right, this must be  <= not just > or <
+        updates_required = [replica_list[index] for index in range(len(replica_list)) if fe_prev[index] != self.value_timestamp[index]]
 
-    @Pyro4.expose
-    def gossip(self):
-        # replica_manager.get_timestamp()
+        for replica_with_update in updates_required:
+            with Pyro4.Proxy(replica_with_update) as replica:
+                # apply the updates from other replicas
+                # value_timestamp will update itself
+                return
+                # TODO Gossip
+
+        # WE need to send our data out to other replicas (only the updates they need)
+        # e.g. if fe_prev has [2,4,5] and this replica has [1, 2, 5]
+        # to gossip we know which updates WE need to receive - we don't need to send their updates until they ask
+
+
+        # we can clean our update log when we have the timestamps of the other replicas
+
+        # once you have replica proxies we need to ask for their updates, WE ONLY WANT THE ONES we don't already have
+        # we might know we've seen the first 4 already
+        # need to introduce a function for sending required updates
+        # we send our timestamp and they reply with the updates
+
         return
+
 
     @Pyro4.expose
     def read(self, movie_identifier, user_ID):
