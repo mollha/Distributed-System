@@ -246,7 +246,11 @@ if __name__ == '__main__':
     daemon = Pyro4.Daemon()
     replica = Replica()
     uri = daemon.register(replica)
-    ns.register(replica.name, uri, safe=True)
-    print('Starting ' + str(replica.name) + '...')
+
+    with Pyro4.Proxy('PYRONAME:front_end_server') as front_end_server:
+        ns.register(replica.name, uri, safe=True)
+        print('Starting ' + str(replica.name) + '...')
+        replica.set_id(front_end_server.register_replica(replica.name, replica))
+        print("Registered %s" % str(replica.name))
 
     daemon.requestLoop()

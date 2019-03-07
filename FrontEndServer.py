@@ -1,6 +1,7 @@
 import Pyro4
 import Exceptions
 # fault_tolerance = 2 (f-1)
+import time
 
 
 class FrontEndServer(object):
@@ -9,6 +10,13 @@ class FrontEndServer(object):
         self.current_replica = 0
         self.prev = []
         self.update_id = 0
+
+    @Pyro4.expose
+    def register_replica(self, replica_name, replica):
+        self.replicas.append(replica)
+        self.prev.append(0)
+        print("Registered %s" % str(replica_name))
+        return len(self.replicas)-1
 
     # send to multiple replica managers
     @Pyro4.expose
@@ -20,10 +28,12 @@ class FrontEndServer(object):
             print('Received request to %s' % operation, '"%s" rating' % client_request[1], 'for user %s' % client_request[2])
             replica = self.get_replica()
             self.update_id += 1
+            print(self.replicas)
+            replica = self.replicas[0]
             response = replica.direct_request(self.prev, client_request, self.update_id)
             # send it to 1 rm
             # if this update is successful then we can send it to the other 2 without returning anything
-
+            print('response', response)
             if type(response) != Exception:
                 # merge
                 print('response', response)
@@ -41,7 +51,7 @@ class FrontEndServer(object):
 
     def get_replica(self):
         replica = self.replicas[self.current_replica]
-        status = replica.get_status
+        status = replica.get_status()
         print(status)
         if status == 'active':
             return replica
@@ -51,7 +61,7 @@ class FrontEndServer(object):
             while not server:
                 server_no += self.current_replica
                 replica = self.replicas[server_no]
-                status = replica.get_status
+                status = replica.get_status()
                 if status == 'active':
                     return replica
                 raise ConnectionRefusedError
@@ -63,19 +73,10 @@ class FrontEndServer(object):
 
 
 if __name__ == '__main__':
-    print('Starting front-end server...')
     front_end_server = FrontEndServer()
     ns = Pyro4.locateNS()
     daemon = Pyro4.Daemon()
     uri = daemon.register(front_end_server)
     ns.register("front_end_server", uri, safe=True)
-
-    # this is super slow now which is kinda annoying
-    for replica_no, replica_name in enumerate(ns.list('replica_manager_')):
-        replica_manager = Pyro4.Proxy('PYRONAME:' + replica_name)
-        replica_manager.set_id(replica_no)
-        front_end_server.replicas.append(replica_manager)
-        front_end_server.prev.append(0)
-        print("Registered %s" % str(replica_name))
-
+    print('Starting front-end server...')
     daemon.requestLoop()
