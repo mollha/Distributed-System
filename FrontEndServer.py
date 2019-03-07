@@ -1,11 +1,11 @@
 import Pyro4
-
+import Exceptions
 # fault_tolerance = 2 (f-1)
 
 
 class FrontEndServer(object):
     def __init__(self):
-        self.replicas = {}
+        self.replicas = []
         self.current_replica = 0
         self.prev = []
         self.update_id = 0
@@ -19,14 +19,17 @@ class FrontEndServer(object):
             operation = client_request[0]
             print('Received request to %s' % operation, '"%s" rating' % client_request[1], 'for user %s' % client_request[2])
             replica = self.get_replica()
+            print('still here')
             self.update_id += 1
             response = replica.direct_request(self.prev, client_request, self.update_id)
-
+            print('still heeere1')
             # send it to 1 rm
             # if this update is successful then we can send it to the other 2 without returning anything
 
             if type(response) != Exception:
+                print('still here')
                 # merge
+                print(response)
                 self.prev = [max(self.prev[index], response[0][index]) for index in range(len(self.replicas))]
                 return response[1]
             return response  # receive error response only - no timestamp
@@ -71,7 +74,7 @@ if __name__ == '__main__':
     for replica_no, replica_name in enumerate(ns.list('replica_manager_')):
         replica_manager = Pyro4.Proxy('PYRONAME:' + replica_name)
         replica_manager.set_id(replica_no)
-        front_end_server.replicas[replica_name] = replica_manager
+        front_end_server.replicas.append(replica_manager)
         front_end_server.prev.append(0)
         print("Registered %s" % str(replica_name))
 

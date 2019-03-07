@@ -7,7 +7,7 @@ class Client(object):
     def __init__(self):
         print('\nWelcome to the movie rating database!')
         print('\nFollow the on-screen instructions or enter "quit" at any time to disconnect!')
-        client.front_end = client.get_front_end()
+        self.front_end = self.get_front_end()
         self.get_request()
 
     def get_front_end(self):
@@ -57,7 +57,7 @@ class Client(object):
                 return
             # -----------------------------------------------------------
             while not user_id:
-                user_id = input('\n' + operation.capitalize() + ' "' + str(movie) +
+                user_id = input('\n' + operation.capitalize() + ' "' + str(movie).capitalize() +
                                 '" rating for which user? Enter user ID: ').strip()
                 if not user_id:
                     print('User ID cannot be empty! Submit an ID such as "1"')
@@ -84,7 +84,6 @@ class Client(object):
                 return
             # -----------------------------------------------------------
             try:
-                print(operation.lower(), movie, user_id, rating)
                 response = self.send_request([operation.lower(), movie, user_id, rating])
                 if operation == 'READ':
                     print(response)
