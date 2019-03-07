@@ -10,5 +10,5 @@ FOR /L %%i IN (1,1,%replicas %) DO (
     start "Replica Manager %%i" cmd /k python -m Replica
 )
 
-timeout 10
+timeout 8
 start "Client" cmd /k python -m Client

@@ -1,82 +1,97 @@
+from typing import Union
 import Pyro4
-import Exceptions
-# fault_tolerance = 2 (f-1)
-import time
+# TODO explain why this import statement is required
+from Exceptions import InvalidUserError, InvalidMovieError
 
 
 class FrontEndServer(object):
+    """
+        This class describes a front-end server
+    """
     def __init__(self):
         self.replicas = []
-        self.current_replica = 0
+        self.replica_id = -1
+        self.default_replica = 0
         self.prev = []
         self.update_id = 0
 
     @Pyro4.expose
-    def register_replica(self, replica_name, replica):
+    def register_replica(self, replica_name: str, replica: Pyro4.Proxy) -> int:
+        """
+            Each replica separately calls this method to register itself with the front-end
+            This is faster than if the front-end had to look up each replica individually
+            :param replica: A Pyro4.Proxy of the replica to be registered
+            :param replica_name: A string containing the name of the replica to be registered
+            :return: An integer, replica_id
+        """
         self.replicas.append(replica)
         self.prev.append(0)
         print("Registered %s" % str(replica_name))
-        return len(self.replicas)-1
+        self.replica_id += 1
+        return self.replica_id
 
-    # send to multiple replica managers
     @Pyro4.expose
-    def forward_request(self, client_request):
-        # need to send prev too with updates only
-        # this should receive the new vector timestamp
+    def forward_request(self, client_request: list) -> Union[Exception, str]:
+        """
+            The front-end server forwards a request to an active replica
+            If there are no active replicas it will try again
+            :param client_request: A list containing the request from the client
+            :return: An exception or a string is returned
+        """
         try:
-            operation = client_request[0]
-            print('Received request to %s' % operation, '"%s" rating' % client_request[1], 'for user %s' % client_request[2])
             replica = self.get_replica()
+            operation = client_request[0]
+            print('\nReceived request to %s' % operation, '"%s" rating' % client_request[1],
+                  'for user %s' % client_request[2])
             self.update_id += 1
-            print(self.replicas)
-            replica = self.replicas[0]
             response = replica.direct_request(self.prev, client_request, self.update_id)
-            # send it to 1 rm
-            # if this update is successful then we can send it to the other 2 without returning anything
-            print('response', response)
-            if type(response) != Exception:
-                # merge
-                print('response', response)
-                print('prev', self.prev)
-                self.prev = [max(self.prev[index], response[0][index]) for index in range(len(self.replicas))]
-                print('prev', self.prev)
+            if not isinstance(response, Exception):
+                self.prev = [max(self.prev[index], response[0][index])
+                             for index in range(len(self.replicas))]
                 return response[1]
-            return response  # receive error response only - no timestamp
-        except ConnectionRefusedError:
-            return "ERROR: All replicas offline"
+            # response is an error therefore doesn't contain a timestamp
+            return response
+        except ConnectionRefusedError as error_message:
+            print(error_message)
+            print('Reconnecting...\n')
+            self.forward_request(client_request)
 
-    # TODO rework this section
-    # rework it so that the request can be sent to all that are online
-    # if this makes sense in terms of gossip
-
-    def get_replica(self):
-        replica = self.replicas[self.current_replica]
+    def get_replica(self) -> Pyro4.Proxy:
+        """
+            If the default replica becomes overloaded - search for another replica
+            that is active and use this until the default replica becomes available
+            If the default replica has failed then search for an active replica to
+            make this the new default replica
+            If there are no active replicas, make an overloaded replica the new default
+            If all replicas are offline, raise a ConnectionRefusedError
+            :return: A Pyro4.Proxy of a replica
+        """
+        replica = self.replicas[self.default_replica]
         status = replica.get_status()
-        print(status)
         if status == 'active':
             return replica
-        elif status == 'over-loaded':
-            server = None
-            server_no = self.current_replica
-            while not server:
-                server_no += self.current_replica
-                replica = self.replicas[server_no]
-                status = replica.get_status()
-                if status == 'active':
-                    return replica
-                raise ConnectionRefusedError
-        elif status == 'offline':
-            self.current_replica = (self.current_replica + 1) % 3
-            return self.get_replica()
-
-        print(len(self.replicas), self.replicas)
+        overloaded = None
+        for new_replica_pos in range(self.default_replica + 1, self.default_replica + 3):
+            new_replica = self.replicas[new_replica_pos % 3]
+            new_status = replica.get_status()
+            if new_status == 'active':
+                if status == 'offline':
+                    self.default_replica = new_replica_pos
+                return new_replica
+            if new_status == 'overloaded':
+                overloaded = new_replica
+        if status == 'overloaded':
+            return replica
+        if overloaded:
+            return overloaded
+        raise ConnectionRefusedError('ERROR: All replicas offline')
 
 
 if __name__ == '__main__':
-    front_end_server = FrontEndServer()
-    ns = Pyro4.locateNS()
-    daemon = Pyro4.Daemon()
-    uri = daemon.register(front_end_server)
-    ns.register("front_end_server", uri, safe=True)
+    FRONT_END_SERVER = FrontEndServer()
+    NS = Pyro4.locateNS()
+    DAEMON = Pyro4.Daemon()
+    URI = DAEMON.register(FRONT_END_SERVER)
+    NS.register("front_end_server", URI, safe=True)
     print('Starting front-end server...')
-    daemon.requestLoop()
+    DAEMON.requestLoop()

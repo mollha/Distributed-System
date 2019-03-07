@@ -20,13 +20,7 @@ class Client(object):
     def send_request(self, request: list):
         # handle possible errors when sending the request - e.g. front end server has gone offline
         try:
-            while True:
-                response = self.front_end.forward_request(request)
-                if response == 'ERROR: All replicas offline':
-                    print(response)
-                    print('Reconnecting...\n')
-                else:
-                    break
+            response = self.front_end.forward_request(request)
             return response
         except errors.CommunicationError as e:
             print(e)
