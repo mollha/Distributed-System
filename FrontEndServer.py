@@ -6,7 +6,7 @@ from Exceptions import InvalidUserError, InvalidMovieError
 
 class FrontEndServer(object):
     """
-        This class describes a front-end server
+        This class describes a front-end server object
     """
     def __init__(self):
         self.replicas = []
