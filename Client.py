@@ -8,7 +8,6 @@ class Client(object):
         print('\nWelcome to the movie rating database!')
         print('\nFollow the on-screen instructions or enter "quit" at any time to disconnect!')
         self.front_end = self.get_front_end()
-        self.get_request()
 
     def get_front_end(self):
         try:
@@ -87,7 +86,6 @@ class Client(object):
                 response = self.send_request([operation.lower(), movie, user_id, rating])
                 if operation == 'READ':
                     print(response)
-                # TODO if not a movie, will return an error - need to check here that a connection error didnt occur
                 options = ['Y', 'N', 'QUIT']
                 repeat = None
                 while repeat not in options:
@@ -113,6 +111,4 @@ class Client(object):
 
 if __name__ == '__main__':
     client = Client()
-# connect to the front end down here
-
-# TODO invalid user error being excepted as invalid movie error
+    client.get_request()

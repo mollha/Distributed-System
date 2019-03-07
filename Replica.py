@@ -8,11 +8,7 @@ import Pyro4
 
 
 class Replica(object):
-    # TODO should you put methods before init
-    @Pyro4.expose
-    @property
-    def get_status(self):
-        return choices(population=['active', 'offline', 'over-loaded'], k=1, weights=[0.75, 0.05, 0.2])[0]
+    # Accessor methods
 
     def __init__(self):
         # The value of the application state as maintained by the RM. Each RM is a state machine, which begins with a
@@ -29,6 +25,10 @@ class Replica(object):
         self.replica_id = None
 
     # TODO - need to create a way to list the other proxies
+
+    @Pyro4.expose
+    def get_status(self):
+        return choices(population=['active', 'offline', 'over-loaded'], k=1, weights=[0.75, 0.05, 0.2])[0]
 
     @Pyro4.expose
     @Pyro4.oneway

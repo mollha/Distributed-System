@@ -70,6 +70,7 @@ if __name__ == '__main__':
     uri = daemon.register(front_end_server)
     ns.register("front_end_server", uri, safe=True)
 
+    # this is super slow now which is kinda annoying
     for replica_no, replica_name in enumerate(ns.list('replica_manager_')):
         replica_manager = Pyro4.Proxy('PYRONAME:' + replica_name)
         replica_manager.set_id(replica_no)
