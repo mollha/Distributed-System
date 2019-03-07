@@ -87,7 +87,7 @@ class Client(object):
                 response = self.send_request([operation.lower(), movie, user_id, rating])
                 if operation == 'READ':
                     print(response)
-                # if not a movie, will return an error - need to check here that a connection error didnt occur
+                # TODO if not a movie, will return an error - need to check here that a connection error didnt occur
                 options = ['Y', 'N', 'QUIT']
                 repeat = None
                 while repeat not in options:
@@ -101,14 +101,13 @@ class Client(object):
                 if repeat == 'N' or repeat == 'QUIT':
                     print('Goodbye!')
                     return
+            except InvalidUserError as error:
+                print('ERROR: %s' % error.message)
+                self.get_request(operation=operation, movie=movie)
+                return
             except InvalidMovieError as error:
                 print('ERROR: %s' % error.message)
                 self.get_request(operation=operation)
-                return
-            except InvalidUserError as error:
-                print(error.message)
-                print('got here')
-                self.get_request(operation=operation, movie=movie)
                 return
 
 

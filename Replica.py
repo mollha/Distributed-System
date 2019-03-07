@@ -8,6 +8,12 @@ import Pyro4
 
 
 class Replica(object):
+    # TODO should you put methods before init
+    @Pyro4.expose
+    @property
+    def get_status(self):
+        return choices(population=['active', 'offline', 'over-loaded'], k=1, weights=[0.75, 0.05, 0.2])[0]
+
     def __init__(self):
         # The value of the application state as maintained by the RM. Each RM is a state machine, which begins with a
         # specified initial value and is thereafter solely the result of applying update operations to that state.
@@ -47,10 +53,6 @@ class Replica(object):
         except KeyError:
             raise InvalidMovieError('"' + movie_identifier + '"' + ' is not a valid movie ID or title')
 
-    @Pyro4.expose
-    @property
-    def get_status(self):
-        return choices(population=['active', 'offline', 'over-loaded'], k=1, weights=[0.75, 0.05, 0.2])[0]
 
     @Pyro4.expose
     def direct_request(self, fe_prev, request, update_id=None):
@@ -72,13 +74,14 @@ class Replica(object):
             params = request[1:]
         response = getattr(self, operation)(*params)
         # if we got that the update went through as expected
+        print('self value 1', self.value_timestamp)
         if type(response) != Exception and id:
             # update value timestamp
             self.value_timestamp[self.replica_id] += 1
             self.update_log[update_id] = (self.value_timestamp, request)
 
-        print(self.value_timestamp)
-        print(response)
+        print('self value 2', self.value_timestamp)
+        print('fe_prev timestamp', fe_prev)
         return self.value_timestamp, response
 
         #return timestamp then response only for non errors
@@ -147,6 +150,24 @@ class Replica(object):
             raise InvalidMovieError('No ratings to show for movie "' + movie[1] + '"')
 
     @Pyro4.expose
+    def delete(self, movie_identifier, user_ID):
+        movie = self.get_movie(movie_identifier)
+        ratings = movie[4]
+
+        if len(ratings):
+            rating_exists = False
+            for review_no, review in enumerate(ratings):
+                author = review[0]
+                if user_ID == author:
+                    del self.movie_dict[movie[0]][3][review_no]
+                    rating_exists = True
+
+            if not rating_exists:
+                raise InvalidUserError('User "' + user_ID + '" has not submitted a review for movie "' + movie[1] + '"')
+        else:
+            raise InvalidMovieError('No ratings to show for movie "' + movie[1] + '"')
+
+    @Pyro4.expose
     def update(self, movie_identifier, user_ID, rating):
         movie = self.get_movie(movie_identifier)
         ratings = movie[4]
@@ -173,23 +194,6 @@ class Replica(object):
                 raise InvalidUserError('User "' + user_ID + '" has already reviewed movie "' + movie[1] + '"')
         self.movie_dict[movie[0]][3].append([user_ID, str(rating), str(time.time())])
 
-    @Pyro4.expose
-    def delete(self, movie_identifier, user_ID):
-        movie = self.get_movie(movie_identifier)
-        ratings = movie[4]
-
-        if len(ratings):
-            rating_exists = False
-            for review_no, review in enumerate(ratings):
-                author = review[0]
-                if user_ID == author:
-                    del self.movie_dict[movie[0]][3][review_no]
-                    rating_exists = True
-
-            if not rating_exists:
-                raise InvalidUserError('User "' + user_ID + '" has not submitted a review for movie "' + movie[1] + '"')
-        else:
-            raise InvalidMovieError('No ratings to show for movie "' + movie[1] + '"')
 
 # piece of gossip - you can share it
 # if you dont have it you cant request for it
