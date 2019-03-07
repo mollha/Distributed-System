@@ -44,7 +44,9 @@ class FrontEndServer(object):
             print('\nReceived request to %s' % operation, '"%s" rating' % client_request[1],
                   'for user %s' % client_request[2])
             self.update_id += 1
-            response = replica.direct_request(self.prev, client_request, self.update_id)
+            replica.gossip_request(self.prev)
+            # send the other two proxies??
+            response = replica.process_request(self.prev, client_request, self.update_id)
             if not isinstance(response, Exception):
                 self.prev = [max(self.prev[index], response[0][index])
                              for index in range(len(self.replicas))]

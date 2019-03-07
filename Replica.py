@@ -14,11 +14,12 @@ class Replica(object):
         self.name = 'replica_manager_' + str(uuid.uuid4())
         self.update_log = {}
         self.value_timestamp = [0, 0, 0]
+        # TODO intialise the timestamp table
         self.timestamp_table = {}
         self.replica_id = None
 
-
     # TODO - need to create a way to list the other proxies
+    # {id : proxy, id: proxy}
 
     @Pyro4.expose
     def get_status(self):
@@ -60,66 +61,51 @@ class Replica(object):
             raise InvalidMovieError('"' + movie_identifier + '"' + ' is not a valid movie ID or title')
 
     @Pyro4.expose
-    def direct_request(self, fe_prev: list, request: list, update_id: int = None):
-        if self.already_processed(update_id):
-            return
-        # self.gossip(fe_prev)
+    def process_request(self, request: list, update_id: int = None) -> tuple:
+        if update_id not in self.update_log.keys():
+            operation = request[0]
+            if operation in ['read', 'delete']:
+                params = request[1:3]
+            else:
+                params = request[1:]
+            response = getattr(self, operation)(*params)
+            # if we got that the update went through as expected
+            if not isinstance(response, Exception) and id:
+                # update value timestamp
+                self.value_timestamp[self.replica_id] += 1
+                self.update_log[update_id] = (self.value_timestamp, request)
+            return self.value_timestamp, response
+
         # applies updates - applies no updates if the timestamps are the same
-        # assume that replica is up to date
-        # this is why we only need update log and not executed too - theyre the same
-        # first check if the update has been seen before
-        operation = request[0]
-        if operation in ['read', 'delete']:
-            params = request[1:3]
-        else:
-            params = request[1:]
-        response = getattr(self, operation)(*params)
-        # if we got that the update went through as expected
-        print('self value 1', self.value_timestamp)
-        if isinstance(response, Exception) and id:
-            # update value timestamp
-            self.value_timestamp[self.replica_id] += 1
-            self.update_log[update_id] = (self.value_timestamp, request)
-
-        print('self value 2', self.value_timestamp)
-        print('fe_prev timestamp', fe_prev)
-        return self.value_timestamp, response
-
-        #return timestamp then response only for non errors
         # [self.prev, client_request, self.update_id]
 
-    def already_processed(self, update_id):
-        try:
-            self.update_log[update_id]
-            return True
-        except KeyError:
-            return False
+    @Pyro4.expose
+    def gossip_request(self, fe_prev):
+        # keep the id too cause we need it later
+        updates_required = [(replica_id, self.other_replicas[replica_id])
+                            for replica_id in self.other_replicas.keys()
+                            if fe_prev[replica_id] < self.value_timestamp[replica_id]]
+
+        # apply the updates from other replicas
+        for replica_info in updates_required:
+            response = replica_info[1].gossip_response(self.value_timestamp)
+            self.timestamp_table[replica_info[0]] = response[1]
+            # response[1] is the new timestamp for id
+            for update_id, update in response[0].items():
+                self.process_request(update, update_id)
+
+
+        # clear the log here
 
     @Pyro4.expose
-    def gossip(self, fe_prev):
-        # replica_list = self.name_server.list('replica_manager_')
-        # not right, this must be  <= not just > or <
-        updates_required = [replica_list[index] for index in range(len(replica_list)) if fe_prev[index] < self.value_timestamp[index]]
-
-        for replica_with_update in updates_required:
-            with Pyro4.Proxy('PYRONAME:%s' % replica_with_update) as RM:
-                # apply the updates from other replicas
-                # value_timestamp will update itself
-                response = RM.respond(self.update_log, self.value_timestamp)
-                for update_id, update in response:
-                    if not self.already_processed(update_id):
-                        # apply updates and add them to the log
-                        pass
-                return
-
-    def respond(self, update_log, timestamp):
-        response = {}
-        for update_id, entry in update_log:
-            if entry[0][self.replica_id] > timestamp[self.replica_id]:
-                response[update_id] = entry
-        return response
-
-    # im not going to clear the log
+    def gossip_response(self, timestamp):
+        missing_updates = {}
+        for update_id, update_tuple in self.update_log.items():
+            if update_tuple[0][self.replica_id] > timestamp > timestamp[self.replica_id]:
+                missing_updates[update_id] = update_tuple
+        # iterate through update log and return the relevant updates
+        # also return my timestamp of the most recent things of yours I have seen
+        return missing_updates, self.value_timestamp
 
     # ------------- QUERY METHOD -------------
     @Pyro4.expose
@@ -144,15 +130,15 @@ class Replica(object):
                 author = review[0]
                 if user_id == author:
                     return '\n--------- Movie Info ---------\n' + \
-                        'ID:\t' + str(movie[0]) + '\n' + \
-                        'Title:\t' + movie[1] + '\n' + \
-                        'Year:\t' + movie[2] + '\n' + \
-                        'Genres:\t' + ", ".join(movie[3]) + '\n' + \
-                        'Average Rating: ' + str(average_rating) + '\n' + \
-                        '\n----------- Rating -----------\n' + \
-                        'Rating: ' + review[1] + '\n' + \
-                        'Posted on ' + datetime.utcfromtimestamp(int(float(review[2]))).strftime('%d.%m.%Y') + \
-                        ' by user "' + author + '"' + '\n'
+                           'ID:\t' + str(movie[0]) + '\n' + \
+                           'Title:\t' + movie[1] + '\n' + \
+                           'Year:\t' + movie[2] + '\n' + \
+                           'Genres:\t' + ", ".join(movie[3]) + '\n' + \
+                           'Average Rating: ' + str(average_rating) + '\n' + \
+                           '\n----------- Rating -----------\n' + \
+                           'Rating: ' + review[1] + '\n' + \
+                           'Posted on ' + datetime.utcfromtimestamp(int(float(review[2]))).strftime('%d.%m.%Y') + \
+                           ' by user "' + author + '"' + '\n'
 
             raise InvalidUserError('User "' + user_id + '" has not submitted a review for movie "' + movie[1] + '"')
         else:
