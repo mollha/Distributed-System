@@ -54,7 +54,13 @@ class FrontEndServer(object):
             self.forward_request(client_request)
 
     @Pyro4.expose
-    def send_other_replicas(self, exclude_id):
+    def send_other_replicas(self, exclude_id: int) -> dict:
+        """
+        Sends a dictionary of replicas excluding the replica that made the request for them
+        Used for communication between replicas
+        :param exclude_id: An int representing the replica to exclude from the list
+        :return: A dictionary containing replica ids and proxies
+        """
         other_replicas = {}
         for replica_id, replica in self.replicas.items():
             if replica_id == exclude_id:
@@ -72,14 +78,14 @@ class FrontEndServer(object):
             If all replicas are offline, raise a ConnectionRefusedError
             :return: A Pyro4.Proxy of a replica
         """
-        # sometimes a key error
         replica = self.replicas[self.default_replica]
         status = replica.get_status()
         if status == 'active':
             return replica
         overloaded = None
         registered_replicas = len(self.replicas)
-        for new_replica_pos in range(self.default_replica + 1, self.default_replica + registered_replicas):
+        for new_replica_pos in range(self.default_replica + 1,
+                                     self.default_replica + registered_replicas):
             new_replica = self.replicas[new_replica_pos % registered_replicas]
             new_status = replica.get_status()
             if new_status == 'active':
@@ -93,11 +99,6 @@ class FrontEndServer(object):
         if overloaded:
             return overloaded
         raise ConnectionRefusedError('ERROR: All replicas offline')
-
-# except Exception as error:
-        #     print(type(error))
-        #     print('ERROR: %s' % error)
-        #     return
 
 
 if __name__ == '__main__':
