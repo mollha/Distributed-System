@@ -1,6 +1,6 @@
 import Pyro4
 from Pyro4 import errors
-from Exceptions import *
+from exceptions import *
 
 
 class Client(object):
@@ -58,6 +58,7 @@ class Client(object):
                         rating = float(rating)
                         if rating > 5 or rating < 0:
                             print('Rating should be a number between 0 and 5!')
+                            rating = None
                     except ValueError:
                         if rating.upper() == 'QUIT':
                             break

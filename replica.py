@@ -4,7 +4,7 @@ from random import choices
 from datetime import datetime
 import time
 import Pyro4
-from Exceptions import *
+from exceptions import *
 
 
 class Replica(object):

@@ -1,7 +1,7 @@
 from typing import Union
 import Pyro4
 # TODO explain why this import statement is required
-from Exceptions import InvalidUserError, InvalidMovieError
+from exceptions import InvalidUserError, InvalidMovieError
 
 
 class FrontEndServer(object):
