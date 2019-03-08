@@ -86,6 +86,7 @@ class Client(object):
                         if rating.upper() == 'QUIT':
                             break
                         print('Rating "' + str(rating) + '" is not a number!')
+                        rating = None
                 else:
                     print('Rating cannot be empty! Submit a number between 0 and 5')
 

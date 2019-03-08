@@ -27,11 +27,11 @@ class Replica(object):
     def get_status(self):
         """
             Randomly generates a status for this RM
-            This is weighted in favour of active (p = 0.75) and overloaded (p = 0.2)
+            This is weighted in favour of active (p = 0.75), then over-loaded (p = 0.2),
+            then offline (p = 0.05)
             :return: A string denoting the status of this RM
         """
-        # TODO finalise weights
-        return choices(population=['active', 'offline', 'over-loaded'], k=1, weights=[0.6, 0.3, 0.1])[0]
+        return choices(population=['active', 'offline', 'over-loaded'], k=1, weights=[0.75, 0.05, 0.2])[0]
 
     def get_movie_id(self, movie_identifier: str) -> int:
         """
@@ -65,28 +65,21 @@ class Replica(object):
 
     @Pyro4.expose
     def process_request(self, request: list, update_id: int = None) -> tuple:
-        print('request', request)
-        if update_id not in self.update_log.keys():
+        operation = request[0]
+        if operation == 'read' or update_id not in self.update_log.keys():
             operation = request[0]
-            print('\nReceived request to %s' % operation, '"%s" rating' % request[1],
+            print('\nProcessing request to %s' % operation, '"%s" rating' % request[1],
                   'for user %s' % request[2])
             if operation in ['read', 'delete']:
                 params = request[1:3]
             else:
-                print('movie_id', request[1])
-                print('user_id', request[2])
-                print('rating', request[3])
                 params = request[1:]
             response = getattr(self, operation)(*params)
             # if we got that the update went through as expected
             if not isinstance(response, Exception) and operation != 'read':
-                print('1')
                 # update value timestamp
                 self.value_timestamp[self.replica_id] += 1
                 self.update_log[update_id] = (self.value_timestamp[:], request)
-                print('2')
-            print('response', response)
-            print(self.value_timestamp, response)
             return self.value_timestamp, response
 
         # applies updates - applies no updates if the timestamps are the same
@@ -98,27 +91,19 @@ class Replica(object):
             self.other_replicas = front_end_server.send_other_replicas(self.replica_id)
             for replica_id in self.other_replicas.keys():
                 self.timestamp_table[replica_id] = [0, 0, 0]
-        print('fe_prev', fe_prev)
-        print('my replica id', self.replica_id)
 
         updates_required = [(replica_id, self.other_replicas[replica_id])
                             for replica_id in self.other_replicas.keys()
                             if fe_prev[replica_id] > self.value_timestamp[replica_id]]
-        print('updates required', updates_required)
         # apply the updates from other replicas
         if updates_required:
             for replica_info in updates_required:
-                print('gossiping with', replica_info[1].get_name)
+                print('Gossiping with', replica_info[1].get_name)
                 response = replica_info[1].gossip_response(self.value_timestamp)
                 self.timestamp_table[replica_info[0]] = response[0]
-                print('time stamp table', self.timestamp_table)
 
                 # response[0] is the new timestamp for id
-                print('their updates ', response[1].items())
                 for update_id, update in response[1].items():
-                    print('update id', update_id)
-                    print('update tuple', update)
-                    print('update tuple2', update[1])
                     # try and apply these updates
                     try:
                         self.process_request(update[1], update_id)
@@ -140,8 +125,6 @@ class Replica(object):
                 missing_updates[update_id] = update_tuple
         # iterate through update log and return the relevant updates
         # also return my timestamp of the most recent things of yours I have seen
-        print('missing updates ', missing_updates)
-        print('my timestamp', self.value_timestamp)
         return self.value_timestamp, missing_updates
 
     # ------------- QUERY METHOD -------------
@@ -191,6 +174,7 @@ class Replica(object):
             :param user_id: A string containing a user_id
         """
         movie = self.get_movie(movie_identifier)
+        print(movie[0])
         ratings = movie[4]
 
         if ratings:
@@ -240,13 +224,11 @@ class Replica(object):
             :param user_id: A string containing a user_id
             :param rating: A float representing a movie rating
         """
-        print('got here')
         movie = self.get_movie(movie_identifier)
         for review in movie[4]:
             author = review[0]
             if user_id == author:
                 raise InvalidUserError('User "' + user_id + '" has already reviewed movie "' + movie[1] + '"')
-        print('no exception yet')
         self.movie_dict[movie[0]][3].append([user_id, str(rating), str(time.time())])
 
 
@@ -291,7 +273,7 @@ if __name__ == '__main__':
     DAEMON = Pyro4.Daemon()
     URI = DAEMON.register(REPLICA)
     NS.register(REPLICA.name, URI, safe=True)
-    print('Connecting ' + str(REPLICA.name) + ' to front-end server ...')
+    print('Connecting ' + str(REPLICA.name) + ' to the front-end server ...')
 
     # Replica connects to the front-end server and passes a proxy of itself to the front-end
     with Pyro4.Proxy('PYRONAME:front_end_server') as front_end_server:

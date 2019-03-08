@@ -42,17 +42,9 @@ class FrontEndServer(object):
                   'for user %s' % client_request[2])
             replica.gossip_request(self.prev)
             response = replica.process_request(client_request, self.update_id)
-            print('do you get here')
-            print(response)
-            print('do u get ere')
             if not isinstance(response, Exception):
-                print('response', response)
-                print('response[0]', response[0], type(response[0]))
-                print('response[1]', response[1], type(response[1]))
-                print('response type', print(type(response)))
                 self.prev = [max(self.prev[index], response[0][index])
                              for index in range(len(self.replicas))]
-                print('response[1]', response[1], type(response[1]))
                 return response[1]
             # response is an error therefore doesn't contain a timestamp
             return response
