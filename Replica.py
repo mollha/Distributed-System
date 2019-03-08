@@ -19,7 +19,6 @@ class Replica(object):
         self.replica_id = None
 
     # TODO - need to create a way to list the other proxies
-    # {id : proxy, id: proxy}
 
     @Pyro4.expose
     def get_status(self):
@@ -64,6 +63,8 @@ class Replica(object):
     def process_request(self, request: list, update_id: int = None) -> tuple:
         if update_id not in self.update_log.keys():
             operation = request[0]
+            print('\nReceived request to %s' % operation, '"%s" rating' % request[1],
+                  'for user %s' % request[2])
             if operation in ['read', 'delete']:
                 params = request[1:3]
             else:
@@ -81,10 +82,24 @@ class Replica(object):
 
     @Pyro4.expose
     def gossip_request(self, fe_prev):
+        print('1')
+        if not self.other_replicas:
+            print('2')
+            print('other replicas', self.other_replicas)
+            self.other_replicas = front_end_server.send_other_replicas(self.replica_id)
+            print('other replicas', self.other_replicas)
+            print('3')
+            for replica_id in self.other_replicas.keys():
+                print('4')
+                self.timestamp_table[replica_id] = [0, 0, 0]
+                print('5')
+            print('timestamp table', self.timestamp_table)
         # keep the id too cause we need it later
+        print('6')
         updates_required = [(replica_id, self.other_replicas[replica_id])
                             for replica_id in self.other_replicas.keys()
                             if fe_prev[replica_id] < self.value_timestamp[replica_id]]
+        print('7')
 
         # apply the updates from other replicas
         for replica_info in updates_required:
@@ -93,9 +108,17 @@ class Replica(object):
             # response[1] is the new timestamp for id
             for update_id, update in response[0].items():
                 self.process_request(update, update_id)
-
+        print('8')
 
         # clear the log here
+        # TODO this relies upon each replica in timestamp table being initialised at [0,0,0]
+        clear = min([timestamp[self.replica_id] for timestamp in self.timestamp_table.values()])
+        print('9')
+        for update_id, update in self.update_log.items():
+            print('10')
+            if clear >= update[0][self.replica_id]:
+                del self.update_log[update_id]
+        print('clear', clear)
 
     @Pyro4.expose
     def gossip_response(self, timestamp):
@@ -250,7 +273,6 @@ if __name__ == '__main__':
     # Replica connects to the front-end server and passes a proxy of itself to the front-end
     with Pyro4.Proxy('PYRONAME:front_end_server') as front_end_server:
         REPLICA.replica_id = front_end_server.register_replica(REPLICA.name, REPLICA)
-        print(REPLICA.replica_id)
 
     print("Ready to receive requests\n")
     DAEMON.requestLoop()

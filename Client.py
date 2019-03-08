@@ -56,7 +56,7 @@ class Client(object):
                 if rating:
                     try:
                         rating = float(rating)
-                        if 5 < rating < 0:
+                        if rating > 5 or rating < 0:
                             print('Rating should be a number between 0 and 5!')
                     except ValueError:
                         if rating.upper() == 'QUIT':

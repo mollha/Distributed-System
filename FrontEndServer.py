@@ -9,10 +9,10 @@ class FrontEndServer(object):
         This class describes a front-end server object
     """
     def __init__(self):
-        self.replicas = []
+        self.replicas = {}
         self.replica_id = -1
         self.default_replica = 0
-        self.prev = []
+        self.prev = [0, 0, 0]
         self.update_id = 0
 
     @Pyro4.expose
@@ -24,10 +24,9 @@ class FrontEndServer(object):
             :param replica_name: A string containing the name of the replica to be registered
             :return: An integer, replica_id
         """
-        self.replicas.append(replica)
-        self.prev.append(0)
-        print("Registered %s" % str(replica_name))
         self.replica_id += 1
+        self.replicas[self.replica_id] = replica
+        print("Registered %s" % str(replica_name))
         return self.replica_id
 
     @Pyro4.expose
@@ -45,11 +44,10 @@ class FrontEndServer(object):
                   'for user %s' % client_request[2])
             self.update_id += 1
             replica.gossip_request(self.prev)
-            # send the other two proxies??
-            response = replica.process_request(self.prev, client_request, self.update_id)
+            response = replica.process_request(client_request, self.update_id)
             if not isinstance(response, Exception):
                 self.prev = [max(self.prev[index], response[0][index])
-                             for index in range(len(self.replicas))]
+                             for index in range(3)]
                 return response[1]
             # response is an error therefore doesn't contain a timestamp
             return response
@@ -57,6 +55,15 @@ class FrontEndServer(object):
             print(error_message)
             print('Reconnecting...\n')
             self.forward_request(client_request)
+
+    @Pyro4.expose
+    def send_other_replicas(self, exclude_id):
+        other_replicas = {}
+        for replica_id, replica in self.replicas.items():
+            if replica_id == exclude_id:
+                continue
+            other_replicas[replica_id] = replica
+        return other_replicas
 
     def get_replica(self) -> Pyro4.Proxy:
         """
@@ -97,3 +104,7 @@ if __name__ == '__main__':
     NS.register("front_end_server", URI, safe=True)
     print('Starting front-end server...')
     DAEMON.requestLoop()
+
+
+# TODO, sometimes each server will get the SAME ID this is not ok
+# add a wait time to bat script or somethin
