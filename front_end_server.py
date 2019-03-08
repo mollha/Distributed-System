@@ -40,12 +40,12 @@ class FrontEndServer(object):
         try:
             replica = self.get_replica()
             operation = client_request[0]
-            print('\nReceived request to %s' % operation, '"%s" rating' % client_request[1],
-                  'for user %s' % client_request[2])
             self.update_id += 1
             replica.gossip_request(self.prev)
             response = replica.process_request(client_request, self.update_id)
             if not isinstance(response, Exception):
+                print('\nReceived request to %s' % operation, '"%s" rating' % client_request[1],
+                      'for user %s' % client_request[2])
                 self.prev = [max(self.prev[index], response[0][index])
                              for index in range(3)]
                 return response[1]
@@ -95,16 +95,18 @@ class FrontEndServer(object):
             return overloaded
         raise ConnectionRefusedError('ERROR: All replicas offline')
 
+# except Exception as error:
+        #     print(type(error))
+        #     print('ERROR: %s' % error)
+        #     return
+
 
 if __name__ == '__main__':
+    print('Starting front-end server...')
     FRONT_END_SERVER = FrontEndServer()
     NS = Pyro4.locateNS()
     DAEMON = Pyro4.Daemon()
     URI = DAEMON.register(FRONT_END_SERVER)
     NS.register("front_end_server", URI, safe=True)
-    print('Starting front-end server...')
+    print('Ready to receive requests\n')
     DAEMON.requestLoop()
-
-
-# TODO, sometimes each server will get the SAME ID this is not ok
-# add a wait time to bat script or somethin

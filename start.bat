@@ -3,12 +3,13 @@ echo %replicas %
 start "Name Server" cmd /k python -m Pyro4.naming
 timeout 1
 
-start "Front End Server" cmd /k python -m FrontEndServer
-timeout 8
+start "Front End Server" cmd /k python -m front_end_server
+timeout 5
 
 FOR /L %%i IN (1,1,%replicas %) DO (
-    start "Replica Manager %%i" cmd /k python -m Replica
+    timeout 1
+    start "Replica Manager %%i" cmd /k python -m replica
 )
 
-timeout 8
-start "Client" cmd /k python -m Client
+timeout 10
+start "Client" cmd /k python -m client

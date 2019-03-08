@@ -8,6 +8,11 @@ from exceptions import *
 
 
 class Replica(object):
+    @Pyro4.expose
+    @property
+    def get_name(self):
+        return self.name
+
     def __init__(self):
         self.movie_dict = read_database()
         self.other_replicas = {}
@@ -18,8 +23,6 @@ class Replica(object):
         self.timestamp_table = {}
         self.replica_id = None
 
-    # TODO - need to create a way to list the other proxies
-
     @Pyro4.expose
     def get_status(self):
         """
@@ -27,7 +30,8 @@ class Replica(object):
             This is weighted in favour of active (p = 0.75) and overloaded (p = 0.2)
             :return: A string denoting the status of this RM
         """
-        return choices(population=['active', 'offline', 'over-loaded'], k=1, weights=[0.7, 0.1, 0.2])[0]
+        # TODO finalise weights
+        return choices(population=['active', 'offline', 'over-loaded'], k=1, weights=[0.6, 0.3, 0.1])[0]
 
     def get_movie_id(self, movie_identifier: str) -> int:
         """
@@ -71,10 +75,10 @@ class Replica(object):
                 params = request[1:]
             response = getattr(self, operation)(*params)
             # if we got that the update went through as expected
-            if not isinstance(response, Exception) and id:
+            if not isinstance(response, Exception) and update_id:
                 # update value timestamp
                 self.value_timestamp[self.replica_id] += 1
-                self.update_log[update_id] = (self.value_timestamp, request)
+                self.update_log[update_id] = (self.value_timestamp[:], request)
             return self.value_timestamp, response
 
         # applies updates - applies no updates if the timestamps are the same
@@ -82,53 +86,48 @@ class Replica(object):
 
     @Pyro4.expose
     def gossip_request(self, fe_prev):
-        print('1')
         if not self.other_replicas:
-            print('2')
-            print('other replicas', self.other_replicas)
             self.other_replicas = front_end_server.send_other_replicas(self.replica_id)
-            print('other replicas', self.other_replicas)
-            print('3')
             for replica_id in self.other_replicas.keys():
-                print('4')
                 self.timestamp_table[replica_id] = [0, 0, 0]
-                print('5')
-            print('timestamp table', self.timestamp_table)
-        # keep the id too cause we need it later
-        print('6')
+        print('fe_prev', fe_prev)
+        print('my replica id', self.replica_id)
+
         updates_required = [(replica_id, self.other_replicas[replica_id])
                             for replica_id in self.other_replicas.keys()
-                            if fe_prev[replica_id] < self.value_timestamp[replica_id]]
-        print('7')
-
+                            if fe_prev[replica_id] > self.value_timestamp[replica_id]]
+        print('updates required', updates_required)
         # apply the updates from other replicas
         for replica_info in updates_required:
+            print('gossiping with', replica_info[1].get_name)
             response = replica_info[1].gossip_response(self.value_timestamp)
-            self.timestamp_table[replica_info[0]] = response[1]
-            # response[1] is the new timestamp for id
-            for update_id, update in response[0].items():
+            self.timestamp_table[replica_info[0]] = response[0]
+            print('time stamp table', self.timestamp_table)
+
+            # response[0] is the new timestamp for id
+            print('their updates ', response[1].items())
+            for update_id, update in response[1].items():
+                print('update id', update_id)
+                print('update tuple', update)
                 self.process_request(update, update_id)
-        print('8')
 
         # clear the log here
-        # TODO this relies upon each replica in timestamp table being initialised at [0,0,0]
         clear = min([timestamp[self.replica_id] for timestamp in self.timestamp_table.values()])
-        print('9')
         for update_id, update in self.update_log.items():
-            print('10')
             if clear >= update[0][self.replica_id]:
                 del self.update_log[update_id]
-        print('clear', clear)
 
     @Pyro4.expose
     def gossip_response(self, timestamp):
         missing_updates = {}
         for update_id, update_tuple in self.update_log.items():
-            if update_tuple[0][self.replica_id] > timestamp > timestamp[self.replica_id]:
+            if update_tuple[0][self.replica_id] > timestamp[self.replica_id]:
                 missing_updates[update_id] = update_tuple
         # iterate through update log and return the relevant updates
         # also return my timestamp of the most recent things of yours I have seen
-        return missing_updates, self.value_timestamp
+        print('missing updates ', missing_updates)
+        print('my timestamp', self.value_timestamp)
+        return self.value_timestamp, missing_updates
 
     # ------------- QUERY METHOD -------------
     @Pyro4.expose
