@@ -1,13 +1,11 @@
 from typing import Union
 import Pyro4
-# TODO explain why this import statement is required
+# This import statement is required as the front-end server
+# may need to pass these exceptions to the client
 from exceptions import InvalidUserError, InvalidMovieError
 
 
 class FrontEndServer(object):
-    """
-        This class describes a front-end server object
-    """
     def __init__(self):
         self.replicas = {}
         self.replica_id = -1
@@ -40,14 +38,21 @@ class FrontEndServer(object):
         try:
             replica = self.get_replica()
             operation = client_request[0]
-            self.update_id += 1
+            print('\nReceived request to %s' % operation, '"%s" rating' % client_request[1],
+                  'for user %s' % client_request[2])
             replica.gossip_request(self.prev)
             response = replica.process_request(client_request, self.update_id)
+            print('do you get here')
+            print(response)
+            print('do u get ere')
             if not isinstance(response, Exception):
-                print('\nReceived request to %s' % operation, '"%s" rating' % client_request[1],
-                      'for user %s' % client_request[2])
+                print('response', response)
+                print('response[0]', response[0], type(response[0]))
+                print('response[1]', response[1], type(response[1]))
+                print('response type', print(type(response)))
                 self.prev = [max(self.prev[index], response[0][index])
-                             for index in range(3)]
+                             for index in range(len(self.replicas))]
+                print('response[1]', response[1], type(response[1]))
                 return response[1]
             # response is an error therefore doesn't contain a timestamp
             return response
@@ -75,13 +80,15 @@ class FrontEndServer(object):
             If all replicas are offline, raise a ConnectionRefusedError
             :return: A Pyro4.Proxy of a replica
         """
+        # sometimes a key error
         replica = self.replicas[self.default_replica]
         status = replica.get_status()
         if status == 'active':
             return replica
         overloaded = None
-        for new_replica_pos in range(self.default_replica + 1, self.default_replica + 3):
-            new_replica = self.replicas[new_replica_pos % 3]
+        registered_replicas = len(self.replicas)
+        for new_replica_pos in range(self.default_replica + 1, self.default_replica + registered_replicas):
+            new_replica = self.replicas[new_replica_pos % registered_replicas]
             new_status = replica.get_status()
             if new_status == 'active':
                 if status == 'offline':

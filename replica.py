@@ -65,6 +65,7 @@ class Replica(object):
 
     @Pyro4.expose
     def process_request(self, request: list, update_id: int = None) -> tuple:
+        print('request', request)
         if update_id not in self.update_log.keys():
             operation = request[0]
             print('\nReceived request to %s' % operation, '"%s" rating' % request[1],
@@ -72,13 +73,20 @@ class Replica(object):
             if operation in ['read', 'delete']:
                 params = request[1:3]
             else:
+                print('movie_id', request[1])
+                print('user_id', request[2])
+                print('rating', request[3])
                 params = request[1:]
             response = getattr(self, operation)(*params)
             # if we got that the update went through as expected
-            if not isinstance(response, Exception) and update_id:
+            if not isinstance(response, Exception) and operation != 'read':
+                print('1')
                 # update value timestamp
                 self.value_timestamp[self.replica_id] += 1
                 self.update_log[update_id] = (self.value_timestamp[:], request)
+                print('2')
+            print('response', response)
+            print(self.value_timestamp, response)
             return self.value_timestamp, response
 
         # applies updates - applies no updates if the timestamps are the same
@@ -98,18 +106,25 @@ class Replica(object):
                             if fe_prev[replica_id] > self.value_timestamp[replica_id]]
         print('updates required', updates_required)
         # apply the updates from other replicas
-        for replica_info in updates_required:
-            print('gossiping with', replica_info[1].get_name)
-            response = replica_info[1].gossip_response(self.value_timestamp)
-            self.timestamp_table[replica_info[0]] = response[0]
-            print('time stamp table', self.timestamp_table)
+        if updates_required:
+            for replica_info in updates_required:
+                print('gossiping with', replica_info[1].get_name)
+                response = replica_info[1].gossip_response(self.value_timestamp)
+                self.timestamp_table[replica_info[0]] = response[0]
+                print('time stamp table', self.timestamp_table)
 
-            # response[0] is the new timestamp for id
-            print('their updates ', response[1].items())
-            for update_id, update in response[1].items():
-                print('update id', update_id)
-                print('update tuple', update)
-                self.process_request(update, update_id)
+                # response[0] is the new timestamp for id
+                print('their updates ', response[1].items())
+                for update_id, update in response[1].items():
+                    print('update id', update_id)
+                    print('update tuple', update)
+                    print('update tuple2', update[1])
+                    # try and apply these updates
+                    try:
+                        self.process_request(update[1], update_id)
+                    except InvalidUserError:
+                        # can no longer apply this update because the replica has updated since then
+                        continue
 
         # clear the log here
         clear = min([timestamp[self.replica_id] for timestamp in self.timestamp_table.values()])
@@ -218,11 +233,20 @@ class Replica(object):
 
     @Pyro4.expose
     def submit(self, movie_identifier, user_id, rating) -> None:
+        """
+            Given a movie_identifier (ID or title), user id and rating
+            Submit a new rating to the database (if it doesn't already exist)
+            :param movie_identifier: A string containing either a movie title or movie ID
+            :param user_id: A string containing a user_id
+            :param rating: A float representing a movie rating
+        """
+        print('got here')
         movie = self.get_movie(movie_identifier)
         for review in movie[4]:
             author = review[0]
             if user_id == author:
                 raise InvalidUserError('User "' + user_id + '" has already reviewed movie "' + movie[1] + '"')
+        print('no exception yet')
         self.movie_dict[movie[0]][3].append([user_id, str(rating), str(time.time())])
 
 
